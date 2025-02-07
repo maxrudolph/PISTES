@@ -43,6 +43,11 @@ nu = 0.33;
 
 % get_water_fraction = @(planet) 
 
+initial_frozen_fraction = 1.0; % the initial fraction of the H2O that is frozen
+cohesion = 2e7;
+
+label = sprintf('_initial-%f_strength-%e',initial_frozen_fraction,cohesion);
+
 % functions for excess pressure & tensile stress
 Pex = @(z_values,ri_values,xi_values,planet) (z_values .* (1-rhoi/rhow)) ./ (beta*(ri_values.^3-planet.rc^3)./(3*ri_values.^2) + ...
     xi_values/E.*(1 + 2*nu*(1+0.5*(planet.R./xi_values).^3)./( (planet.R./xi_values).^3-1) ) );
@@ -50,17 +55,21 @@ sigma_t = @(z_values,ri_values,xi_values,planet) 3/2*Pex(z_values,ri_values,xi_v
 sigma_rr = @(Pex1,r,ri,xi,planet) Pex1/((planet.R/xi)^3-1)*(1-(planet.R./r).^3);
 sigma_tt = @(Pex1,r,ri,xi,planet) Pex1/((planet.R/xi)^3-1)*(1+0.5*(planet.R./r).^3);
 
-nf = 101;
-nr = 100;
+nf = 501;
+nr = 500;
 
-ff = linspace(0.001,0.999,nf);        % mass fraction water (+ice)
+ff = linspace(0.001,0.999,nf);     % mass fraction water (+ice)
 RR = linspace(1.0e5,1.8e6,nr);     % moon radius
 fractional_thickening_boil = NaN*ones(nf,nr);
 fractional_thickening_yield_constant = NaN*ones(nf,nr);
 fractional_thickening_yield_coulomb = NaN*ones(nf,nr);
-max_stress = zeros(nf,nr);
 yield_constant = NaN*ones(nf,nr);
 yield_coulomb = NaN*ones(nf,nr);
+sdmax_boil = NaN*ones(nf,nr);
+sdmax_yield_constant = NaN*ones(nf,nr);
+sdmax_yield_coulomb = NaN*ones(nf,nr);
+
+
 h2o_thickness = zeros(nf,nr);
 sdmax = NaN*zeros(nf,nr);
 boil = NaN*zeros(nf,nr);
@@ -80,14 +89,14 @@ for i = 1:nf
         gg(i,j) = p.g;
         h2o_thickness(i,j) = p.R-p.rc;
 
-        nthick = 1000; % number of thickness values to test
+        nthick = 100; % number of thickness values to test
         % assume that the ice shell is entirely frozen:
         z_values = linspace(0,-(p.R-p.rc-1),nthick);  % amount of thickening (thinning negative)
         ri_values = p.rc + z_values;                  % coordinate of base of ice shell
 
-        % assume that the ice shell is 50%  frozen:
-        % z_values = linspace(0,-(p.R-p.rc)*0.5-1,nthick);  % amount of thickening (thinning negative)
-        % ri_values = p.rc + (p.R-p.rc)*0.5 + z_values;     % coordinate of base of ice shell
+        % assume that the ice shell is X%  frozen:
+        z_values = linspace(0,-(p.R-p.rc)*(initial_frozen_fraction)+1,nthick);  % amount of thickening (thinning negative)
+        ri_values = p.rc + (p.R-p.rc)*(1-initial_frozen_fraction) + z_values;     % coordinate of base of ice shell
 
         elastic_thickness = (1/2)*(p.R-ri_values);  % elastic thickness
         xi_values = p.R - elastic_thickness;        % coordinate of base of elastic layer
@@ -101,9 +110,13 @@ for i = 1:nf
         ind2 = []; % index for yielding at constant strength
         fail1_values = zeros(nthick,1);
         fail2_values = zeros(nthick,1);
+        fail1_depth = zeros(nthick,1);
+        fail2_depth = zeros(nthick,1);
+        sdmax_values = zeros(nthick,1);
+        sdmax_depth = zeros(nthick,1);
         for k=1:nthick
             Pex1 = Pex_values(k);
-            rr = linspace(xi_values(k),p.R,100);
+            rr = linspace(xi_values(k),p.R,100);% start at base of elastic layer, go to surface.
             srr = sigma_rr(Pex1,rr,ri_values(k),xi_values(k),p);
             stt = sigma_tt(Pex1,rr,ri_values(k),xi_values(k),p);
             % Pex,r,z,ri,xi,planet
@@ -111,15 +124,24 @@ for i = 1:nf
             plith = -rhoi*p.g*(p.R-rr); % lithostatic stress (compression negative)
             ptot = pp+plith;
             sd = srr-stt; % differential stress
-            strength = -ptot*0.6 + 4e7;% 40 MPa + 0.6*P
+            strength = -ptot*0.6 + cohesion;% 40 MPa + 0.6*P
 
-            fail1_values(k) = max(sd-strength);
-            fail2_values(k) = max(sd-40e6);
+            [stmp,itmp] = max(sd-strength);
+            fail1_values(k) = stmp;
+            fail1_depth(k) = itmp;
+
+            [stmp,itmp] = max(sd-cohesion);
+            fail2_values(k) = stmp;
+            fail2_depth(k) = itmp;
+
+            [stmp,itmp] = max(sd);
+            sdmax_depth(k) = itmp; 
+            sdmax_values(k) = stmp;
 
             if isempty(ind1) && any( sd > strength )
                 ind1 = k;
             end
-            if isempty(ind2) && any( sd > 40e6 )
+            if isempty(ind2) && any( sd > cohesion )
                 ind2 = k;
             end
             if ~isempty(ind1) && ~isempty(ind2)
@@ -127,21 +149,30 @@ for i = 1:nf
             end
         end
         fail1_values = fail1_values(1:k);
+        fail1_depth = fail1_depth(1:k);
         fail2_values = fail2_values(1:k);
+        fail2_depth = fail2_depth(1:k);
+        sdmax_values = sdmax_values(1:k);
+        sdmax_depth = sdmax_depth(1:k);
 
         [ind] = find(P_values <= 600,1,'first'); % total pressure less than boiling pressure
         if ~isempty(ind)
             boil(i,j) = interp1(P_values,1:nthick,600);% interpolated index where pressure reaches 600 Pa            
             fractional_thickening_boil(i,j) = -interp1(1:nthick,z_values,boil(i,j))/(p.R-p.rc);
+            sdmax_boil(i,j) = interp1(1:k,sdmax_values,boil(i,j));
         end      
         if ~isempty(ind1)
             % yield_coulomb(i,j) = ind1;
             yield_coulomb(i,j) = interp1(fail1_values,1:k,0);
             fractional_thickening_yield_coulomb(i,j) = -interp1(1:nthick,z_values,yield_coulomb(i,j))/(p.R-p.rc);
+            sdmax_yield_coulomb(i,j) = interp1(1:k,sdmax_values,yield_coulomb(i,j));
+            yield_depth_coulomb(i,j) = fail1_depth(ind1);
         end
         if ~isempty(ind2)
             yield_constant(i,j) = interp1(fail2_values,1:k,0);
             fractional_thickening_yield_constant(i,j) = -interp1(1:nthick,z_values,yield_constant(i,j))/(p.R-p.rc);
+            sdmax_yield_constant(i,j) = interp1(1:k,sdmax_values,yield_constant(i,j));
+            yield_depth_constant(i,j) = fail2_depth(ind2);
         end
         % [ind1] = find(-sigma_t_values > 4e7,1,'first');
         % 
@@ -218,6 +249,7 @@ TableofSatellites = import_satellite_table('Table_of_Satellites.xlsx', "Sheet1",
 satellite_f = 1-TableofSatellites.McMp;
 satellite_R = TableofSatellites.RcKm./TableofSatellites.RcRp;
 %% 
+fractional_thickening_coulomb = min(fractional_thickening_boil,fractional_thickening_yield_coulomb);
 boil_first_coulomb = fractional_thickening_boil <= fractional_thickening_yield_coulomb; % mask of boil before yield
 boil_first_constant = fractional_thickening_boil <= fractional_thickening_yield_constant;
 % This logic is necessary because comparisons involving NaN are always
@@ -241,8 +273,11 @@ shading flat
 colorbar()
 title('h2o thickness')
 
-figure
-pcolor(RR/1e3,ff,fractional_thickening);
+f=figure(101);
+% pos = get(gcf,'Position');
+% f.Position(3) = pos(3)*2;
+% subplot(1,2,1);
+pcolor(RR/1e3,ff,fractional_thickening_coulomb);
 shading flat;
 hcb=colorbar();
 hcb.Label.String = 'Fractional Thinning to Boil or Fail';
@@ -253,10 +288,11 @@ scatter(satellite_R,satellite_f,'ko','MarkerFaceColor','k');
 text(satellite_R+25,satellite_f,TableofSatellites.Satellite);
 contour(RR/1e3,ff,boil_region_coulomb,[0.5 0.5],'k','LineWidth',1);
 contour(RR/1e3,ff,boil_region_constant,[0.5 0.5],'k--','LineWidth',1);
-set(gca,'FontSize',14)
-set(gca,'Layer','top')
-caxis([0 1])
-exportgraphics(gcf,'fractional_thinning.pdf','Resolution',600);
+set(gca,'FontSize',14);
+set(gca,'Layer','top');
+caxis([0 1]);
+set(gca,'YLim',[0 1]);
+exportgraphics(gcf,['fractional_thinning' label '.pdf'],'Resolution',600);
 
 figure
 pcolor(RR/1e3,ff,yield_coulomb);
@@ -268,20 +304,22 @@ hcb=colorbar();
 hcb.Label.String = 'yield criterion?';
 set(gca,'FontSize',14)
 set(gca,'Layer','top')
+%% 
+figure();
+% subplot(1,2,2);
+max_stress = sdmax_yield_coulomb;
+max_stress(boil_region_coulomb) = sdmax_boil(boil_region_coulomb);
 
-figure
-pcolor(RR/1e3,ff,-max_stress);
+hh=pcolor(RR/1e3,ff,max_stress);
 shading flat;
 hold on
-% contour(RR/1e3,ff,sdmax,[8 40]*10^6,'k');
-contour(RR/1e3,ff,yield_constant,[0.5 0.5],'k','LineWidth',1);
-contour(RR/1e3,ff,yield_coulomb,[0.5 0.5],'k--','LineWidth',1);
-set(gca,'FontSize',14)
-
 hcb=colorbar();
 set(gca,'ColorScale','log');
 hcb.Label.String = 'Maximum differential stress (Pa)';
-
+% contour(RR/1e3,ff,sdmax,[8 40]*10^6,'k');
+contour(RR/1e3,ff,boil_region_coulomb,[0.5 0.5],'k','LineWidth',1);
+% contour(RR/1e3,ff,yield_coulomb,[0.5 0.5],'k--','LineWidth',1);
+set(gca,'FontSize',14)
 
 % hcb.Label.String = 'Fractional Thinning to Boil';
 xlabel('Planetary Body Radius (km)');
@@ -289,10 +327,35 @@ ylabel('H_2O Mass Fraction (-)')
 hold on
 scatter(satellite_R,satellite_f,'ko','MarkerFaceColor','k');
 text(satellite_R+25,satellite_f,TableofSatellites.Satellite);
-set(gca,'FontSize',14)
-set(gca,'Layer','top')
-exportgraphics(gcf,'differential_stress.pdf','Resolution',600);
+set(gca,'FontSize',14);
+set(gca,'Layer','top');
+set(gca,'YLim',[0 1]);
+exportgraphics(gcf,['differential_stress_coulomb' label '.pdf'],'Resolution',600);
 
+
+% CONSTANT YIELD STRESS
+figure()
+max_stress = sdmax_yield_constant;
+max_stress(boil_region_constant) = sdmax_boil(boil_region_constant);
+
+hh=pcolor(RR/1e3,ff,max_stress);
+shading flat;
+hold on
+hcb=colorbar();
+set(gca,'ColorScale','log');
+hcb.Label.String = 'Maximum differential stress (Pa)';
+% contour(RR/1e3,ff,sdmax,[8 40]*10^6,'k');
+contour(RR/1e3,ff,boil_region_constant,[0.5 0.5],'k--','LineWidth',1);
+set(gca,'FontSize',14)
+xlabel('Planetary Body Radius (km)');
+ylabel('H_2O Mass Fraction (-)')
+hold on
+scatter(satellite_R,satellite_f,'ko','MarkerFaceColor','k');
+text(satellite_R+25,satellite_f,TableofSatellites.Satellite);
+set(gca,'FontSize',14);
+set(gca,'Layer','top');
+set(gca,'YLim',[0 1]);
+exportgraphics(gcf,'differential_stress_constant.pdf','Resolution',600);
 %% 
 
 figure, 
