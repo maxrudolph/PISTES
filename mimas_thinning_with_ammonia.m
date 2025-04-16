@@ -26,12 +26,14 @@ nammonia = 1;
 nthick = 1;
 initial_ammonia = [ 0.0 ];
 thicknesses = [ 70e3 ];
+reset_stresses = false;
+
 %initial_ammonia = [0.0 0.06 ];
 %thicknesses = [3e3 30e3 ];
 
 for iAmmonia = 1:nammonia
     for ithick = 1:nthick
-        clearvars -except ithick iAmmonia nammonia failure_thickness failure_times nrs nthick thicknesses initial_ammonia
+        clearvars -except reset_stresses ithick iAmmonia nammonia failure_thickness failure_times nrs nthick thicknesses initial_ammonia
         
         for isetup = 4:4
             viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
@@ -41,7 +43,7 @@ for iAmmonia = 1:nammonia
             if isetup == 4 % Mimas
                 Ro = 1.982e5;            % outer radius of ice shell (m)
                 Ri = Ro-thicknesses(ithick);  % (initial) inner radius of ice shell (m)
-                Rc = 1.266e5;         % core radius (m)
+                Rc = Ro-1.266e5;         % core radius (m)
                 e0 = 2.5*0.0196;           % starting eccentricity
                 max_depth = Ro-Rc;
                 g = 0.064;      % used to calculate failure, m/s/s
@@ -54,7 +56,6 @@ for iAmmonia = 1:nammonia
                 %Qbelow = @(time) time*(-2.6E-16)+61e-3; % additional basal heat flux production in W/m^2
                 relaxation_parameter=1e-2; % used in nonlinear loop.
                 X0 = initial_ammonia(iAmmonia); % initial ammonia content.
-                reset_stresses = true;
                 %V0 = 4/3*pi*(Ro^3-Ri^3); % Initial volume of ice shell?
                 
                 label = 'Mimas'; 
@@ -119,15 +120,15 @@ for iAmmonia = 1:nammonia
                 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
                 % set end time and grid resolution
                 
-                t_end = 40e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
+                t_end = 1e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
                 % dt = 1e4*seconds_in_year; % time step in seconds
-                dtmax = 4e5*seconds_in_year;
+                dtmax = 4e4*seconds_in_year;
                 dtmin = 3600;%*seconds_in_year;
                 % dt1 = 3600; % size of first timestep
                 % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
                 plot_interval = t_end;
-                save_interval = 1e4*seconds_in_year;
-                save_depths = linspace(0,max_depth,500);
+                save_interval = 1e3*seconds_in_year;
+                save_depths = linspace(0,max_depth,1000);
                 
                 nsave = ceil(t_end/save_interval) + 1;
                 nsave_depths = length(save_depths);
@@ -570,6 +571,7 @@ for iAmmonia = 1:nammonia
                     
                     %5.75 consider resetting stresses if ice shell is
                     %thinning?
+                    P_oceantop = (rho_i)*(Ro-(Ri-z))*g + Pex;
                     if z-z_last < 0 && reset_stresses
                         sigma_r = 0*sigma_r;
                         sigma_t = 0*sigma_t;
@@ -578,6 +580,8 @@ for iAmmonia = 1:nammonia
                         et = 0*et;
                         ur = 0*ur;
                         Pex = 0.0;
+                    elseif P_oceantop < 6e3 % 6 millibar - triple point pressure
+                        break;
                     end
                     
                     
@@ -655,26 +659,29 @@ for iAmmonia = 1:nammonia
                          t.OuterPosition = [1 1 11 14];
                 nexttile
                 
-                contourf(results.time(mask)/seconds_in_year,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
+                contourf(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
                 hold on
-                plot(results.time(mask)/seconds_in_year,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+                plot(results.time(mask)/seconds_in_year/1e3,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
                 %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
                 set(gca,'YDir','reverse');
+                set(gca,'YLim',[0 80]);
                 ax1 = gca();
                 ax1.FontSize=8;
                 hcb = colorbar();
                 hcb.Label.String = 'Tensile Stress (MPa)';
+                ax1.CLim = max(abs(ax1.CLim))*[-1 1];
+                colormap(crameri('roma'));
                 text(0.025,0.85,char('A'),'FontSize',12,'Units','normalized');
-                xlabel('Time (years)');
+                xlabel('Time (kyr)');
                 title(label);
                 ylabel('Depth (km)');
                 set(gca,'XScale',xscale);
                 hold on;
                 for i=1:ifail-1
-                    plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
+                    plot(results.failure_time(i)*1e6*[1 1]/1e3,[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
                 end
                 nexttile
-                plot(results.time(mask)/seconds_in_year,results.Pex(mask)/1e6);
+                plot(results.time(mask)/seconds_in_year/1e3,results.Pex(mask)/1e6);
                 ylabel('P_{ex} (MPa)');
                 set(gca,'XScale',xscale);
                 ax2 = gca();
@@ -682,13 +689,13 @@ for iAmmonia = 1:nammonia
                 ax2.XLim = ax1.XLim;
                 ax2.FontSize=8;
                 hold on
-                plot(results.failure_time(1:ifail-1)*1e6,results.failure_P(1:ifail-1)/1e6,'r.');
+                plot(results.failure_time(1:ifail-1)*1e6/1e3,results.failure_P(1:ifail-1)/1e6,'r.');
                 end_color = [0 0.9 0];
-                plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1))/1e6,'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
+                plot(results.failure_time(1:ifail-1)*1e6/1e3,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1))/1e6,'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
                 text(0.025,0.85,char('B'),'FontSize',12,'Units','normalized');
-                plot(results.time(mask)/seconds_in_year,results.Pex_crit(mask)/1e6,'k-');
+                plot(results.time(mask)/seconds_in_year/1e3,results.Pex_crit(mask)/1e6,'k-');
                 
-                xlabel('Time (years)');
+                xlabel('Time (kyr)');
                 nexttile
                 hold on;
                 for i=1:ifail-1
@@ -696,14 +703,14 @@ for iAmmonia = 1:nammonia
                         % plot nothing
                     else
                         if results.failure_P(i) - results.failure_Pex_crit(i) > 0 
-                            plot(results.failure_time(i)*1e6*[1 1],[0 1],'b');
+                            plot(results.failure_time(i)*1e6*[1 1]/1e3,[0 1],'b');
                         else
-                            plot(results.failure_time(i)*1e6*[1 1],[0 1],'b--');
+                            plot(results.failure_time(i)*1e6*[1 1]/1e3,[0 1],'b--');
                         end
                     end                    
                 end
                 ylabel('Eruption?');
-                xlabel('Time (years)');
+                xlabel('Time (kyr)');
                 set(gca,'XScale',xscale);
                 ax3=gca();
                 ax3.XLim = ax1.XLim;
@@ -713,18 +720,22 @@ for iAmmonia = 1:nammonia
                 text(0.025,0.85,char('C'),'FontSize',12,'Units','normalized');
                 
                 nexttile;
-                plot(results.time(mask)/seconds_in_year,results.XNH3(mask),'k');
+                plot(results.time(mask)/seconds_in_year/1e3,results.XNH3(mask),'k');
                 set(gca,'XScale',xscale);
                 ylabel('X_{NH_3}')
-                xlabel('Time (years)');
+                xlabel('Time (kyr)');
+                ax4=gca();
+                ax4.FontSize=8;
+
                 set(gca,'XLim',ax1.XLim);
                 nexttile;
-                plot(results.time(mask)/seconds_in_year,results.eccentricity(mask),'k');
+                plot(results.time(mask)/seconds_in_year/1e3,results.eccentricity(mask),'k');
                 set(gca,'XScale',xscale);
                 ylabel('e (-)')
-                xlabel('Time (years)');
+                xlabel('Time (kyr)');
                 set(gca,'XLim',ax1.XLim);
-                
+                ax5=gca()
+                ax5.FontSize=8;
 
                 fig = gcf();
 

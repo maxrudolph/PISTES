@@ -14,7 +14,7 @@
 clear;
 close all;
 addpath core; % this is where the helper functions live.
-addpath mimas;
+
 % Numerical parameters
 
 nrs = [512]; % number of points used in the radial direction
@@ -25,7 +25,7 @@ failure_thickness = 0;
 nammonia = 1;
 nthick = 1;
 initial_ammonia = [ 0.0 ];
-thicknesses = [ 70e3 ];
+thicknesses = [ 54.641e3 ];
 %initial_ammonia = [0.0 0.06 ];
 %thicknesses = [3e3 30e3 ];
 
@@ -37,24 +37,32 @@ for iAmmonia = 1:nammonia
             viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
             viscosity.d = 1e-3; % grain size in m used to calculate the viscosity (for G-K)
             viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
-                                     
-            if isetup == 4 % Mimas
+            
+            if isetup == 3  % Charon
+                Ro = 6.06e5;            % outer radius of ice shell (m)
+                Ri = Ro-thicknesses(ithick);  % (initial) inner radius of ice shell (m)
+                Rc = Ro-2.30e5;         % core radius (m)
+                max_depth = Ro-Rc;
+                g = 0.279;      % used to calculate failure, m/s/s
+                Ts=40; % Surface temperature (K)
+                
+                Qbelow = @(time) 1e-3; % additional basal heat flux production in W/m^2
+                relaxation_parameter=1e-2; % used in nonlinear loop.
+                X0 = initial_ammonia(iAmmonia); % initial ammonia content.
+                %V0 = 4/3*pi*(Ro^3-Ri^3); % Initial volume of ice shell?
+                
+                label = 'Charon';                          
+            elseif isetup == 4 % Mimas
                 Ro = 1.982e5;            % outer radius of ice shell (m)
                 Ri = Ro-thicknesses(ithick);  % (initial) inner radius of ice shell (m)
-                Rc = 1.266e5;         % core radius (m)
-                e0 = 2.5*0.0196;           % starting eccentricity
+                Rc = Ro-1.266e5;         % core radius (m)
                 max_depth = Ro-Rc;
                 g = 0.064;      % used to calculate failure, m/s/s
-                Ts=80; % Surface temperature (K)
-                core_type = 2; % 1 for rigid core - set Ts to 60K; 2 for fluffy core - set Ts to 80K
-                % constants
-                a_over_GMm = 1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
-
-                Qbelow = @(thickness,eccentricity) mimas_tidal_heating(thickness,eccentricity,core_type);
+                Ts=60; % Surface temperature (K)
+                Qbelow = @(time) 67.5e-3;
                 %Qbelow = @(time) time*(-2.6E-16)+61e-3; % additional basal heat flux production in W/m^2
                 relaxation_parameter=1e-2; % used in nonlinear loop.
                 X0 = initial_ammonia(iAmmonia); % initial ammonia content.
-                reset_stresses = true;
                 %V0 = 4/3*pi*(Ro^3-Ri^3); % Initial volume of ice shell?
                 
                 label = 'Mimas'; 
@@ -98,7 +106,7 @@ for iAmmonia = 1:nammonia
                 end
                 % Failure criterion:
                 tensile_strength = 3e6; % tensile strength, Pa
-                cohesion = 2e7;  % plastic yield strength, MPa
+                cohesion = 2e7;  % plastic yield strength
                 friction = 0.6; % friction angle for plastic yielding
                 % Thermal properties
                 Cp = 2100; %heat capacity of ice J/kg/K
@@ -119,9 +127,9 @@ for iAmmonia = 1:nammonia
                 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
                 % set end time and grid resolution
                 
-                t_end = 40e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
+                t_end = 1e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
                 % dt = 1e4*seconds_in_year; % time step in seconds
-                dtmax = 4e5*seconds_in_year;
+                dtmax = 4e4*seconds_in_year;
                 dtmin = 3600;%*seconds_in_year;
                 % dt1 = 3600; % size of first timestep
                 % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
@@ -134,8 +142,6 @@ for iAmmonia = 1:nammonia
                 sigma_t_store = zeros(nsave_depths,nsave);
                 
                 results.time = zeros(nsave,1);
-                results.eccentricity = zeros(nsave,1); results.eccentricity(1) = e0;
-                results.thickness = zeros(nsave,1); results.thickness(1) = Ro-Ri;
                 results.z = zeros(nsave,1);
                 results.Ri = zeros(nsave,1); results.Ri(1) = Ri;
                 results.qb = zeros(nsave,1);
@@ -166,7 +172,6 @@ for iAmmonia = 1:nammonia
                 grid_r = linspace(Ri,Ro,nr); % set up the grid
                 
                 % initialize solution vectors (IC)
-                eccentricity_last = e0;                
                 sigma_r_last = zeros(nr,1); % initial stresses
                 sigma_t_last = zeros(nr,1); % initial stresses
                 siiD_last = zeros(nr,1); % deviatoric stress invariant - used for viscosity
@@ -248,9 +253,7 @@ for iAmmonia = 1:nammonia
                     Tg = Tb-(T_last(2)-Tb);
                     dTdr_b_last = (T_last(2)-Tg)/2/(grid_r(2)-grid_r(1));
                     qb = -k(Tb)*dTdr_b_last;
-                    [tidal_heating,total_heating] = Qbelow(grid_r(end)-grid_r(1),eccentricity_last);
-
-                    qb_net = qb - total_heating; % first term is conducted heat. second term is heat supplied from below.
+                    qb_net = qb - Qbelow(time+dt); % first term is conducted heat. second term is heat supplied from below.
                     
                     % determine the timestep
                     if abs(qb_net/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
@@ -283,8 +286,7 @@ for iAmmonia = 1:nammonia
                     % added/removed from ocean to maintain Tm at base.
                     L_eff = dUdTm * dTmdX * dXdz;% J/m^2/K * K * 1/m =>  J/m^3
                     
-                    [tidal_heating,total_heating] = Qbelow(grid_r(end)-grid_r(1),eccentricity_last);
-                    qb_net = qb - total_heating;
+                    qb_net = qb - Qbelow(time+dt);
                     
                     % thickening would be dx/dt = qb/(L*rho_i)
                     delta_rb = dt*qb_net/(Lf*rho_i + L_eff);% s * W/(J/kg/K * kg/m^3 + J/m^3)
@@ -367,7 +369,7 @@ for iAmmonia = 1:nammonia
                                     urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
                                     volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
                                 else
-                                    pressure_contribution = 0;  
+                                    pressure_contribution = 0;
                                     volume_contribution = 0;
                                 end
                                 % reset stresses and uplift
@@ -564,25 +566,9 @@ for iAmmonia = 1:nammonia
                     if any(yielding)
                         keyboard
                     end
-                    % 5.5 step the eccentricity
-                    energy_change = tidal_heating*4*pi*(grid_r(1))^2*dt;
-                    eccentricity = eccentricity_last - (1-eccentricity_last^2)/eccentricity_last*a_over_GMm*energy_change;
-                    
-                    %5.75 consider resetting stresses if ice shell is
-                    %thinning?
-                    if z-z_last < 0 && reset_stresses
-                        sigma_r = 0*sigma_r;
-                        sigma_t = 0*sigma_t;
-                        siiD = 0*siiD;
-                        er = 0*er;
-                        et = 0*et;
-                        ur = 0*ur;
-                        Pex = 0.0;
-                    end
                     
                     
                     % 6. advance to next time step and plot (if needed)
-                    eccentricity_last = eccentricity;
                     sigma_r_last = sigma_r;
                     sigma_t_last = sigma_t;
                     siiD_last = siiD;
@@ -627,11 +613,9 @@ for iAmmonia = 1:nammonia
                         time_store(isave) = time;
                         
                         results.time(isave) = time;
-                        results.eccentricity(isave) = eccentricity;
-                        results.thickness(isave) = grid_r(end)-grid_r(1);
                         results.z(isave) = z;
                         results.Ri(isave) = Ri;
-                        results.qb(isave) = total_heating;
+                        results.qb(isave) = Qbelow(time);
                         results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
                         results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
                         results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
@@ -648,9 +632,9 @@ for iAmmonia = 1:nammonia
                 mask = 1:(isave-1);
 
                 %% Pseudocolor stress plot
-                xscale = 'linear';               
+                xscale = 'log';               
                 figure();
-                t=tiledlayout(5,1,'TileSpacing','compact','Padding','none');
+                t=tiledlayout(4,1,'TileSpacing','compact','Padding','none');
                          t.Units = 'centimeters';
                          t.OuterPosition = [1 1 11 14];
                 nexttile
@@ -718,14 +702,7 @@ for iAmmonia = 1:nammonia
                 ylabel('X_{NH_3}')
                 xlabel('Time (years)');
                 set(gca,'XLim',ax1.XLim);
-                nexttile;
-                plot(results.time(mask)/seconds_in_year,results.eccentricity(mask),'k');
-                set(gca,'XScale',xscale);
-                ylabel('e (-)')
-                xlabel('Time (years)');
-                set(gca,'XLim',ax1.XLim);
                 
-
                 fig = gcf();
 
                 
@@ -733,22 +710,7 @@ for iAmmonia = 1:nammonia
                 filename = sprintf('%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
                     thicknesses(ithick));
                 exportgraphics(gcf,filename,'ContentType','vector');
-                %% 
-                figure();
-                plot(results.eccentricity(1:isave-1),results.thickness(1:isave-1)/1e3);
-                set(gca,'XLim',[.001 .05 ],'YLim',[0 70]);
-                set(gca,'XDir','reverse');
-                xlabel('Eccentricity (-)');
-                ylabel('Thickness (km)');
-                filename = sprintf('eccentricity-thickness-%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
-                    thicknesses(ithick));
-                exportgraphics(gcf,filename,'ContentType','vector');
-                
-                %% find shell thickness associated with present eccentricity
-                present_eccentricity = .0196;
-                [~,ind] = min( abs( results.eccentricity-present_eccentricity ));
-                results.thickness(ind)
-                disp(sprintf("Eccentricity %f, thickness %f",results.eccentricity(ind),results.thickness(ind)));
+                                                                        
             end
         end
     end
