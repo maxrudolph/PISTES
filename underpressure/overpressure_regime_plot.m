@@ -43,12 +43,15 @@ nu = 0.33;
 
 % get_water_fraction = @(planet) 
 
-initial_frozen_fraction = 1.0; % the initial fraction of the H2O that is frozen
-cohesion = 4e7;
+initial_frozen_fraction = NaN;%0.05; % the initial fraction of the H2O that is frozen
+initial_frozen_thickness= 1e3;
+% cohesion = 4e7;
+tensile_strength = 3e6;
+
 elastic_fraction = 1/2;
 
 
-label = sprintf('_initial-%f_strength-%e',initial_frozen_fraction,cohesion);
+label = sprintf('_initial-%f_tensilestrength-%e',initial_frozen_fraction,tensile_strength);
 
 % functions for excess pressure & tensile stress
 Pex = @(z_values,ri_values,xi_values,planet) (z_values .* (1-rhoi/rhow)) ./ (beta*(ri_values.^3-planet.rc^3)./(3*ri_values.^2) + ...
@@ -57,20 +60,25 @@ sigma_t = @(z_values,ri_values,xi_values,planet) 3/2*Pex(z_values,ri_values,xi_v
 sigma_rr = @(Pex1,r,ri,xi,planet) Pex1/((planet.R/xi)^3-1)*(1-(planet.R./r).^3);
 sigma_tt = @(Pex1,r,ri,xi,planet) Pex1/((planet.R/xi)^3-1)*(1+0.5*(planet.R./r).^3);
 
-nf = 101;
-nr = 100;
+nf = 21;
+nr = 20;
 
 ff = linspace(0.001,0.999,nf);     % mass fraction water (+ice)
 RR = linspace(1.0e5,1.8e6,nr);     % moon radius
-fractional_thickening_boil = NaN*ones(nf,nr);
-fractional_thickening_yield_constant = NaN*ones(nf,nr);
-fractional_thickening_yield_coulomb = NaN*ones(nf,nr);
-yield_constant = NaN*ones(nf,nr);
-yield_coulomb = NaN*ones(nf,nr);
-sdmax_boil = NaN*ones(nf,nr);
-sdmax_yield_constant = NaN*ones(nf,nr);
-sdmax_yield_coulomb = NaN*ones(nf,nr);
-
+% fractional_thickening_boil = NaN*ones(nf,nr);
+% fractional_thickening_yield_constant = NaN*ones(nf,nr);
+% fractional_thickening_yield_coulomb = NaN*ones(nf,nr);
+fractional_thickening_fail_tension = NaN*ones(nf,nr);
+% yield_constant = NaN*ones(nf,nr);
+% yield_coulomb = NaN*ones(nf,nr);
+fail_tension = NaN*ones(nf,nr);
+% sdmax_boil = NaN*ones(nf,nr);
+% sdmax_yield_constant = NaN*ones(nf,nr);
+% sdmax_yield_coulomb = NaN*ones(nf,nr);
+% sdmax_fail_tension = NaN*ones(nf,nr);
+net_loading_at_failure = NaN*ones(nf,nr);
+Pex_at_failure = NaN*ones(nf,nr);
+Pexcrit_at_failure = NaN*ones(nf,nr);
 
 h2o_thickness = zeros(nf,nr);
 sdmax = NaN*zeros(nf,nr);
@@ -91,14 +99,14 @@ for i = 1:nf
         gg(i,j) = p.g;
         h2o_thickness(i,j) = p.R-p.rc;
 
-        nthick = 100; % number of thickness values to test
-        % assume that the ice shell is entirely frozen:
-        z_values = linspace(0,-(p.R-p.rc-1),nthick);  % amount of thickening (thinning negative)
-        ri_values = p.rc + z_values;                  % coordinate of base of ice shell
+        nthick = 50; % number of thickness values to test
+        % assume a constant initial thickness
+        z_values = linspace(0,(p.R-p.rc-initial_frozen_thickness),nthick);
+        ri_values = p.R-initial_frozen_thickness - z_values;
 
         % assume that the ice shell is X%  frozen:
-        z_values = linspace(0,-(p.R-p.rc)*(initial_frozen_fraction)+1,nthick);  % amount of thickening (thinning negative)
-        ri_values = p.rc + (p.R-p.rc)*(1-initial_frozen_fraction) + z_values;     % coordinate of base of ice shell
+        % z_values = linspace(0,(p.R-p.rc)*(1-initial_frozen_fraction)-1,nthick);  % amount of thickening (thinning negative)
+        % ri_values = p.R - (p.R-p.rc)*(initial_frozen_fraction) - z_values;       % coordinate of base of ice shell
 
         elastic_thickness = (elastic_fraction)*(p.R-ri_values);  % elastic thickness
         xi_values = p.R - elastic_thickness;        % coordinate of base of elastic layer
@@ -106,17 +114,24 @@ for i = 1:nf
         Pex_values = Pex(z_values,ri_values,xi_values,p);
         P_values = rhoi*p.g*(p.R-ri_values) + Pex_values;
         sigma_t_values = sigma_t(z_values,ri_values,xi_values,p);
-        
+        Pex_crit_values = (p.R-ri_values)*p.g*(rhow-rhoi);
+
         % more correct but costly check for yielding
-        ind1 = []; % index for yielding via mohr-columb
-        ind2 = []; % index for yielding at constant strength
-        fail1_values = zeros(nthick,1);
-        fail2_values = zeros(nthick,1);
-        fail1_depth = zeros(nthick,1);
-        fail2_depth = zeros(nthick,1);
-        sdmax_values = zeros(nthick,1);
-        sdmax_depth = zeros(nthick,1);
-        for k=1:nthick
+        % ind1 = []; % index for yielding via mohr-columb
+        % ind2 = []; % index for yielding at constant strength
+        ind3 = []; % index for tensile failure
+        % fail1_values = zeros(nthick,1);
+        % fail2_values = zeros(nthick,1);
+        fail3_values = zeros(nthick,1);
+        % fail1_depth = zeros(nthick,1);
+        % fail2_depth = zeros(nthick,1);
+        fail3_depth = zeros(nthick,1);
+        % sdmax_values = zeros(nthick,1);
+        % sdmax_depth = zeros(nthick,1);
+        stensile_max = zeros(nthick,1);
+        net_loading = zeros(nthick,1);
+
+        for k=1:nthick % loop over thickening amounts (z_values)
             Pex1 = Pex_values(k);
             rr = linspace(xi_values(k),p.R,100);% start at base of elastic layer, go to surface.
             srr = sigma_rr(Pex1,rr,ri_values(k),xi_values(k),p);
@@ -125,123 +140,52 @@ for i = 1:nf
             pp = 1/3*(srr+2*stt); % elastic pressure
             plith = -rhoi*p.g*(p.R-rr); % lithostatic stress (compression negative)
             ptot = pp+plith;
-            sd = srr-stt; % differential stress
-            strength = -ptot*0.6 + cohesion;% 40 MPa + 0.6*P
+            % sd = srr-stt; % differential stress
+            stensile = stt+plith;
 
-            [stmp,itmp] = max(sd-strength);
-            fail1_values(k) = stmp;
-            fail1_depth(k) = itmp;
+            rrp = linspace(ri_values(k),xi_values(k));
+            plithp = -rhoi*p.g*(p.R-rrp);
+            tmp1 = cumtrapz(rr,plith);
+            tmp2 = cumtrapz(rrp,plithp);
+            pressure_integral = tmp1(end)+tmp2(end);
+            loading_integral = cumtrapz(rr,stt);
+            loading_integral = loading_integral(end);
+            net_loading(k) = loading_integral + pressure_integral;
 
-            [stmp,itmp] = max(sd-cohesion);
-            fail2_values(k) = stmp;
-            fail2_depth(k) = itmp;
+            [stmp,itmp] = max(stensile); % this is (tensile stress)-(lithostatic pressure)
+            fail3_values(k) = stmp;
+            fail3_depth(k) = itmp;           
 
-            [stmp,itmp] = max(sd);
-            sdmax_depth(k) = itmp; 
-            sdmax_values(k) = stmp;
-
-            if isempty(ind1) && any( sd > strength )
-                ind1 = k;
+            % if isempty(ind1) && any( sd > strength )
+                % ind1 = k;
+            % end
+            % if isempty(ind2) && any( sd > cohesion )
+                % ind2 = k;
+            % end
+            if any( stensile > tensile_strength )
+                ind3 = k;              
             end
-            if isempty(ind2) && any( sd > cohesion )
-                ind2 = k;
-            end
-            if ~isempty(ind1) && ~isempty(ind2)
+            % if ~isempty(ind1) && ~isempty(ind2)
+                % break;
+            % end
+           
+            if ~isempty(ind3) % tensile failure has occurred
                 break;
             end
         end
-        fail1_values = fail1_values(1:k);
-        fail1_depth = fail1_depth(1:k);
-        fail2_values = fail2_values(1:k);
-        fail2_depth = fail2_depth(1:k);
-        sdmax_values = sdmax_values(1:k);
-        sdmax_depth = sdmax_depth(1:k);
-
-        [ind] = find(P_values <= 600,1,'first'); % total pressure less than boiling pressure
-        if ~isempty(ind)
-            boil(i,j) = interp1(P_values,1:nthick,600);% interpolated index where pressure reaches 600 Pa            
-            fractional_thickening_boil(i,j) = -interp1(1:nthick,z_values,boil(i,j))/(p.R-p.rc);
-            sdmax_boil(i,j) = interp1(1:k,sdmax_values,boil(i,j));
-        end      
-        if ~isempty(ind1)
-            % yield_coulomb(i,j) = ind1;
-            yield_coulomb(i,j) = interp1(fail1_values,1:k,0);
-            fractional_thickening_yield_coulomb(i,j) = -interp1(1:nthick,z_values,yield_coulomb(i,j))/(p.R-p.rc);
-            sdmax_yield_coulomb(i,j) = interp1(1:k,sdmax_values,yield_coulomb(i,j));
-            yield_depth_coulomb(i,j) = fail1_depth(ind1);
-        end
-        if ~isempty(ind2)
-            yield_constant(i,j) = interp1(fail2_values,1:k,0);
-            fractional_thickening_yield_constant(i,j) = -interp1(1:nthick,z_values,yield_constant(i,j))/(p.R-p.rc);
-            sdmax_yield_constant(i,j) = interp1(1:k,sdmax_values,yield_constant(i,j));
-            yield_depth_constant(i,j) = fail2_depth(ind2);
-        end
-        % [ind1] = find(-sigma_t_values > 4e7,1,'first');
-        % 
-        % if isempty(ind) && isempty(ind1) % no boiling, no yielding
-        %     fractional_thickening(i,j) = NaN;
-        %     max_stress(i,j) = NaN;
-        %     sdmax(i,j) = NaN;
-        %     yield_coulomb(i,j) = Inf;
-        %     yield_constant(i,j) = Inf;
-        % 
-        %     % for k=1:nthick
-        %     %     Pex1 = Pex_values(k);
-        %     %     rr = linspace(xi_values(k),p.R,100);
-        %     %     srr = sigma_rr(Pex1,rr,ri_values(k),xi_values(k),p);
-        %     %     stt = sigma_tt(Pex1,rr,ri_values(k),xi_values(k),p);
-        %     %     % Pex,r,z,ri,xi,planet
-        %     %     pp = 1/3*(srr+2*stt);
-        %     %     plith = -rhoi*p.g*(p.R-rr); % lithostatic stress (compression negative)
-        %     %     ptot = pp+plith;
-        %     %     sd = srr-stt; % differential stress
-        %     %     strength = -ptot*0.6 + 4e7;% 40 MPa + 0.6*P
-        %     %     if any(sd > strength)
-        %     %         fractional_thickening_to_yield(i,j) = -z_values(k)/(p.R-p.rc);
-        %     %         break;
-        %     %     end
-        %     % end
-        % elseif isempty(ind) && ~isempty(ind1)
-        %     % yielding            
-        %     fractional_thickening(i,j) = -z_values(ind1)/(p.R-p.rc);
-        %     max_stress(i,j) = sigma_t_values(ind1);
-        %     yield_constant(i,j) = true;
-        %     sdmax(i,j) = sigma_t_values(ind1);
-        % elseif ~isempty(ind) && isempty(ind1)
-        %     % boiling
-        %     fractional_thickening(i,j) = -z_values(ind)/(p.R-p.rc);
-        %     % fractional_thickening_to_yield(i,j) = -z_values(ind)/(p.R-p.rc);
-        %     max_stress(i,j) = sigma_t_values(ind);
-        %     sdmax(i,j) = sigma_t_values(ind);
-        % else % boiling AND yielding
-        %     if ind < ind1
-        %         % boiling occurs first
-        %         fractional_thickening(i,j) = -z_values(ind)/(p.R-p.rc);
-        %         max_stress(i,j) = sigma_t_values(ind);
-        %         sdmax(i,j) = sigma_t_values(ind);
-        %     else
-        %         % yielding occurs first
-        %         fractional_thickening(i,j) = -z_values(ind1)/(p.R-p.rc);
-        %         max_stress(i,j) = sigma_t_values(ind1); 
-        %         yield_constant(i,j) = true;
-        %         sdmax(i,j) = sigma_t_values(ind1);
-        %     end
-        %     % % compute stresses in the elastic layer at the time of boiling
-        %     % Pex1 = Pex_values(ind);
-        %     % rr = linspace(xi_values(ind),p.R,100);
-        %     % srr = sigma_rr(Pex1,rr,ri_values(ind),xi_values(ind),p);
-        %     % stt = sigma_tt(Pex1,rr,ri_values(ind),xi_values(ind),p);
-        %     %               % Pex,r,z,ri,xi,planet
-        %     % pp = 1/3*(srr+2*stt);
-        %     % plith = -rhoi*p.g*(p.R-rr); % lithostatic stress (compression negative)
-        %     % ptot = pp+plith;
-        %     % sd = srr-stt; % differential stress
-        %     % strength = -ptot*0.6 + 4e7;% 40 MPa + 0.6*P
-        %     % yield_coulomb(i,j) = any(sd > strength);
-        %     % yield_constant(i,j) = any(sd > 4e7);
-        %     % 
-        %     % sdmax(i,j) = max(sd);
-        % end        
+        
+        fail3_values = fail3_values(1:k);
+        fail3_depth = fail3_depth(1:k);
+        net_loading = net_loading(1:k);
+        
+        if ~isempty(ind3)
+            
+            fail_tension(i,j) = interp1(fail3_values,1:k,tensile_strength); % this is the interpolated index of pressure where failure occurred
+            Pex_at_failure(i,j) = interp1(1:k,Pex_values(1:k),fail_tension(i,j));
+            Pexcrit_at_failure(i,j) = interp1(1:k,Pex_crit_values(1:k),fail_tension(i,j));
+            net_loading_at_failure(i,j) = interp1(1:k,net_loading,fail_tension(i,j));
+            fractional_thickening_fail_tension(i,j) = interp1(1:nthick,z_values,fail_tension(i,j))/(p.R-p.rc);
+        end     
     end
 end
 
@@ -251,24 +195,16 @@ TableofSatellites = import_satellite_table('Table_of_Satellites.xlsx', "Sheet1",
 satellite_f = 1-TableofSatellites.McMp;
 satellite_R = TableofSatellites.RcKm./TableofSatellites.RcRp;
 
-%% 
-fractional_thickening_coulomb = min(fractional_thickening_boil,fractional_thickening_yield_coulomb);
-boil_first_coulomb = fractional_thickening_boil <= fractional_thickening_yield_coulomb; % mask of boil before yield
-boil_first_constant = fractional_thickening_boil <= fractional_thickening_yield_constant;
-% This logic is necessary because comparisons involving NaN are always
-% false
-boil_region_coulomb = boil_first_coulomb | ...
-    (isnan(fractional_thickening_yield_coulomb) & ~isnan(fractional_thickening_boil));
-boil_region_constant = boil_first_constant | ...
-    (isnan(fractional_thickening_yield_constant) & ~isnan(fractional_thickening_boil));
-% yield_first_coulomb = fractional_thickening_yield_coulomb < fractional_thickening_boil;
-
+%% Plotting
 figure
-pcolor(RR,ff,gg);
+contourf(RR/1e3,ff,gg,128);
+hold on
+scatter(satellite_R,satellite_f,'ko','MarkerFaceColor','k');
+text(satellite_R+25,satellite_f,TableofSatellites.Satellite);
 shading flat
 colorbar()
 
-figure
+figure()
 % pcolor(RR,ff,h2o_thickness);
 hold on
 contour(RR,ff,h2o_thickness,25000:25000:1000000);
@@ -276,39 +212,43 @@ shading flat
 colorbar()
 title('h2o thickness')
 
+extrusion_possible = Pex_at_failure > Pexcrit_at_failure;
+
 f=figure(101);
 % pos = get(gcf,'Position');
 % f.Position(3) = pos(3)*2;
 % subplot(1,2,1);
-pcolor(RR/1e3,ff,fractional_thickening_coulomb);
+% pcolor(RR/1e3,ff,fractional_thickening_fail_tension);
+contourf(RR/1e3,ff,net_loading_at_failure,128,'Color','none');
 shading flat;
 hcb=colorbar();
-hcb.Label.String = 'Fractional Thinning to Boil or Fail';
+hcb.Label.String = 'Fractional Thinning to Fail';
 xlabel('Planetary Body Radius (km)');
 ylabel('H_20 Mass Fraction (-)')
 hold on
 scatter(satellite_R,satellite_f,'ko','MarkerFaceColor','k');
 text(satellite_R+25,satellite_f,TableofSatellites.Satellite);
-contour(RR/1e3,ff,boil_region_coulomb,[0.5 0.5],'k','LineWidth',1);
-contour(RR/1e3,ff,boil_region_constant,[0.5 0.5],'k--','LineWidth',1);
+contour(RR/1e3,ff,net_loading_at_failure,[0.0 0.0],'k','LineWidth',1);
+contour(RR/1e3,ff,extrusion_possible,[0.5 0.5],'r','LineWidth',1);
+% contour(RR/1e3,ff,boil_region_constant,[0.5 0.5],'k--','LineWidth',1);
 set(gca,'FontSize',14);
 set(gca,'Layer','top');
-caxis([0 1]);
+% caxis([0 1]);
 set(gca,'YLim',[0 1]);
 text(0.05,0.95,'A','Units','normalized','FontSize',18)
-set(gcf,'Color','none');
-exportgraphics(gcf,['fractional_thinning' label '.pdf'],'Resolution',600);
+% set(gcf,'Color','none');
+% exportgraphics(gcf,['fractional_thickening' label '.pdf'],'Resolution',600);
 
-figure
-pcolor(RR/1e3,ff,yield_coulomb);
-shading flat;
-hold on
-% contour(RR/1e3,ff,yield,[8 40]*10^6,'k');
-hcb=colorbar();
-% set(gca,'ColorScale','log');
-hcb.Label.String = 'yield criterion?';
-set(gca,'FontSize',14)
-set(gca,'Layer','top')
+% figure
+% pcolor(RR/1e3,ff,yield_coulomb);
+% shading flat;
+% hold on
+% % contour(RR/1e3,ff,yield,[8 40]*10^6,'k');
+% hcb=colorbar();
+% % set(gca,'ColorScale','log');
+% hcb.Label.String = 'yield criterion?';
+% set(gca,'FontSize',14)
+% set(gca,'Layer','top')
 %% 
 figure();
 % subplot(1,2,2);
