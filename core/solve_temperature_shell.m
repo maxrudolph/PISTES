@@ -3,6 +3,7 @@ function [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,
 % VECTOR inputs
 % grid_r - node locations
 % T_last - last timestep solution
+% H - vector of heating values (volumetric)
 %
 % SCALAR inputs
 % Tb - basal temperature
@@ -10,8 +11,10 @@ function [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,
 % k - thermal conductivity
 % rho - density
 % Cp - heat capacity
-% H - (constant) internal heating
 % dt - timestep
+
+% the equations are discretized as rho*Cp/dt*dTnew - div(k*grad(Tnew)) = rho*Cp/dt*Tlast + H 
+% units of all terms are W/m^3
 
 nr = length(grid_r);
 
@@ -51,7 +54,7 @@ for i=1:nr
     if( i==1 )
         row(ind) = i; col(ind) = i; val(ind) =  coef_center; ind = ind + 1;
         row(ind) = i; col(ind) = i+1; val(ind) =  coef_plus-coef_minus; ind = ind + 1;
-        R(i) = rho_i*Cp/dt*T_last(i) + H - 2*Tb*coef_minus;
+        R(i) = rho_i*Cp/dt*T_last(i) + H(i) - 2*Tb*coef_minus;
         %             L(i,i+1) = coef_plus-coef_minus;
         %             R(i) = R(i) - 2*Tb*coef_minus;
         %         R(i) = coef_center*Tb;
@@ -59,14 +62,14 @@ for i=1:nr
         row(ind) = i; col(ind) = i;   val(ind) = coef_center; ind = ind+1;
         row(ind) = i; col(ind) = i-1; val(ind) = coef_minus-coef_plus; ind = ind+1;
         %             L(i,i-1) = coef_minus-coef_plus;
-        R(i) = rho_i*Cp/dt*T_last(i) + H - 2*Ts*coef_plus;
+        R(i) = rho_i*Cp/dt*T_last(i) + H(i) - 2*Ts*coef_plus;
         %         R(i) = coef_center*Ts;
     else
         row(ind) = i; col(ind) = i-1; val(ind) = coef_minus;  ind = ind + 1;
         row(ind) = i; col(ind) = i;   val(ind) = coef_center; ind = ind + 1;
         row(ind) = i; col(ind) = i+1; val(ind) = coef_plus;   ind = ind + 1;
         
-        R(i) = rho_i*Cp/dt*T_last(i) + H;
+        R(i) = rho_i*Cp/dt*T_last(i) + H(i);
     end
 end
 row = row(1:ind-1);
