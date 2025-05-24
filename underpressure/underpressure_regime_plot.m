@@ -44,7 +44,7 @@ nu = 0.33;
 % get_water_fraction = @(planet) 
 
 initial_frozen_fraction = 1.0; % the initial fraction of the H2O that is frozen
-cohesion = 4e7;
+cohesion = 1.2e7;          % paper uses values of 12, 20, 40 MPa.
 elastic_fraction = 1/2;
 
 
@@ -57,8 +57,8 @@ sigma_t = @(z_values,ri_values,xi_values,planet) 3/2*Pex(z_values,ri_values,xi_v
 sigma_rr = @(Pex1,r,ri,xi,planet) Pex1/((planet.R/xi)^3-1)*(1-(planet.R./r).^3);
 sigma_tt = @(Pex1,r,ri,xi,planet) Pex1/((planet.R/xi)^3-1)*(1+0.5*(planet.R./r).^3);
 
-nf = 101;
-nr = 100;
+nf = 501;
+nr = 500;
 
 ff = linspace(0.001,0.999,nf);     % mass fraction water (+ice)
 RR = linspace(1.0e5,1.8e6,nr);     % moon radius

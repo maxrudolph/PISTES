@@ -2,13 +2,13 @@
 % Max Rudolph, March 19, 2020
 % adapted for other moons by Alyssa Rhoden, 6/2021
 %
-% Cite: 
+% Cite:
 % Rudolph, M.L., Manga, M., Walker, M., and Rhoden, A. Cooling Crusts
 % Create Concommitant Cryovolcanic Cracks. Geophysical Research Letters
 % 49(5) e2021GL094421
 %
 % and
-% 
+%
 %
 
 clear;
@@ -36,7 +36,7 @@ tadjust = 1e8*3.15e7; % -1 for FAST thinning
 for iAmmonia = 1:nammonia
     for ithick = 1:nthick
         clearvars -except reset_stresses ithick iAmmonia nammonia failure_thickness failure_times nrs nthick thicknesses initial_ammonia tadjust Qnew
-        
+
         for isetup = [2 4]
             viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
             viscosity.d = 1e-3; % grain size in m used to calculate the viscosity (for G-K)
@@ -49,7 +49,7 @@ for iAmmonia = 1:nammonia
                 max_depth = 6.5e4;% maximum depth for saving/plotting output
                 Ts=80;
                 a_over_GMm = 0.0;%1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
-              
+
                 relaxation_parameter=1e-3; % used in nonlinear loop.
                 X0 = 0.0;
                 e0 = 0.0;
@@ -67,14 +67,14 @@ for iAmmonia = 1:nammonia
                 core_type = 2; % 1 for rigid core - set Ts to 60K; 2 for fluffy core - set Ts to 80K
                 % constants
                 a_over_GMm = 1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
-                
+
                 % Qbelow = @(thickness,eccentricity) mimas_tidal_heating(thickness,eccentricity,core_type);
                 %Qbelow = @(time) time*(-2.6E-16)+61e-3; % additional basal heat flux production in W/m^2
                 relaxation_parameter=1e-2; % used in nonlinear loop.
                 X0 = initial_ammonia(iAmmonia); % initial ammonia content.
                 %V0 = 4/3*pi*(Ro^3-Ri^3); % Initial volume of ice shell?
-                
-                label = 'Mimas'; 
+
+                label = 'Mimas';
                 start_letter = 'D';
             else
                 error('not implemented');
@@ -87,7 +87,7 @@ for iAmmonia = 1:nammonia
             else
                 error('not implemented');
             end
-            
+
             for inr=1:length(nrs) % loop over nr values for resolution tests
                 ifail = 1; % index into list of times at which failure occurred.
                 nr = nrs(inr); % number of grid points
@@ -99,7 +99,7 @@ for iAmmonia = 1:nammonia
                 % Boundary conditions and internal heating
                 H=0; % internal heating rate.
                 Tb = ammonia_melting(X0);
-                
+
                 % Elastic and Viscous properties of the ice shell
                 E = 5e9;        % shear modulus of ice (Pa) MAX: 5e9
                 nu = 0.33;       % Poisson ratio of ice (-)
@@ -137,12 +137,12 @@ for iAmmonia = 1:nammonia
                 [Q0,T,q] = find_steady_T(Ri,Ro,Tb,Ts,linspace(Ri,Ro,nr));
                 %perturbation_period = 1.0e8*seconds_in_year;
                 %deltaQonQ = 1.0; % fractional perturbation to Q0.
-                
+
                 % calculate maxwell time at 100, 270
                 fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(100,0)/E,mu(Tb,0)/E);
                 fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
                 % set end time and grid resolution
-                
+
                 t_end = 300e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
                 % dt = 1e4*seconds_in_year; % time step in seconds
                 dtmax = 4e4*seconds_in_year;
@@ -152,11 +152,11 @@ for iAmmonia = 1:nammonia
                 plot_interval = t_end;
                 save_interval = 1e3*seconds_in_year;
                 save_depths = linspace(0,max_depth,300);
-                
+
                 nsave = ceil(t_end/save_interval) + 1;
                 nsave_depths = length(save_depths);
                 sigma_t_store = zeros(nsave_depths,nsave);
-                
+
                 results.time = zeros(nsave,1);
                 results.eccentricity = zeros(nsave,1); results.eccentricity(1) = e0;
                 results.thickness = zeros(nsave,1); results.thickness(1) = Ro-Ri;
@@ -174,7 +174,7 @@ for iAmmonia = 1:nammonia
                 results.Tb = zeros(nsave,1);
                 results.ur = zeros(nsave_depths,nsave);
                 results.failure_time = zeros(1,nsave);
-                results.failure_P = zeros(1,nsave);                
+                results.failure_P = zeros(1,nsave);
                 results.failure_Pex_crit = zeros(1,nsave);
                 results.failure_dP = zeros(1,nsave);
                 results.failure_thickness = zeros(1,nsave);
@@ -187,17 +187,17 @@ for iAmmonia = 1:nammonia
                 erupted_volume_pressurechange = 0;
                 erupted_volume_volumechange = 0;
                 last_store = -Inf;
-                
+
                 % set up the grid
                 grid_r = linspace(Ri,Ro,nr); % set up the grid
-                
+
                 % initialize solution vectors (IC)
-                eccentricity_last = e0;                
+                eccentricity_last = e0;
                 sigma_r_last = zeros(nr,1); % initial stresses
                 sigma_t_last = zeros(nr,1); % initial stresses
                 siiD_last = zeros(nr,1); % deviatoric stress invariant - used for viscosity
                 T_last = zeros(nr,1);
-                % Initialize T with stefan solution                
+                % Initialize T with stefan solution
                 % T_last(:) = solve_stefan_analytic(grid_r(end)-grid_r,k(Tb),rho_i,Cp,Lf,Tb,Ts);
                 [~,T_last(:),~] = find_steady_T(Ri,Ro,Tb,Ts,grid_r);
 
@@ -207,10 +207,10 @@ for iAmmonia = 1:nammonia
                 z_last = 0;    % total amount of thickening
                 dzdt_last = 0; % thickening rate
                 Pex_last = 0; %initial overpressure
-                
+
                 % Set up plot
                 hf2=figure();
-                
+
                 plot_times = linspace(0,t_end,5); iplot=2;
                 hf=figure();
                 subplot(1,4,1); % sigma_r and sigma_t
@@ -232,7 +232,7 @@ for iAmmonia = 1:nammonia
                 plot(ur_last,Ro-grid_r); hold on; title('u_r');
                 set(gca,'YDir','reverse');
                 last_plot_time = 0;
-                
+
                 fig1a.h = figure(); % Nimmo's Figure 1a
                 subplot(2,1,1);
                 [ax,h1,h2]=plotyy((Ro-grid_r)/1e3,sigma_t_last/1e6,(Ro-grid_r)/1e3,T_last);
@@ -249,19 +249,19 @@ for iAmmonia = 1:nammonia
                 xlabel(ax(1),'Depth (km)');
                 ylabel(ax(2),'Temperature (K)');
                 set(ax(2),'YLim',[100 180]);
-                
+
                 time=0; itime=1;
                 % save initial state
                 isave = 1;
-                
+
                 %sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
                 % time_store(isave) = time;
                 % last_store = time; isave = isave+1;
                 X = X0;
-                
+
                 failure_mask = false(size(grid_r)); % stores whether failure occurred
                 failure_time = zeros(size(grid_r)); % stores the time at which failure occurred
-                
+
                 while time < t_end && (Ri-z_last > Rc)
                     % In each timestep, we do the following
                     % 1. Calculate the amount of basal freeze-on and advance the mesh
@@ -269,7 +269,7 @@ for iAmmonia = 1:nammonia
                     % 3. Solve for sigma_r
                     % 4. Calculate sigma_t
                     % 5. Calculate the radial displacements u(r)
-                    
+
                     % 1. Calculate basal freeze-on and interpolate old solution onto new mesh
                     % calculate heat flux
                     dt = dtmax;
@@ -279,7 +279,7 @@ for iAmmonia = 1:nammonia
                     [tidal_heating,total_heating] = Qbelow(time,0.0);
 
                     qb_net = qb - total_heating; % first term is conducted heat. second term is heat supplied from below.
-                    
+
                     % determine the timestep
                     if abs(qb_net/Lf/rho_i*dt) > (grid_r(2)-grid_r(1))/2
                         dt = abs( (grid_r(2)-grid_r(1))/2/(qb_net/Lf/rho_i) );
@@ -291,7 +291,7 @@ for iAmmonia = 1:nammonia
                     if any(failure_mask)
                         dt = dtmin;
                     end
-                    
+
                     % compute the derivative of Tm with respect to X
                     Xp = X + 1e-6;
                     Xm = X - 1e-6;
@@ -310,12 +310,12 @@ for iAmmonia = 1:nammonia
                     % compute an effective latent heat that accounts for heat
                     % added/removed from ocean to maintain Tm at base.
                     L_eff = dUdTm * dTmdX * dXdz;% J/m^2/K * K * 1/m =>  J/m^3
-                    
-                    
+
+
                     [tidal_heating,total_heating] = Qbelow(time,0.0);
 
                     qb_net = qb - total_heating;
-                    
+
                     % thickening would be dx/dt = qb/(L*rho_i)
                     delta_rb = dt*qb_net/(Lf*rho_i + L_eff);% s * W/(J/kg/K * kg/m^3 + J/m^3)
                     z = z_last + delta_rb;
@@ -324,13 +324,13 @@ for iAmmonia = 1:nammonia
                     % update ocean density
                     rho_w = ammonia_density(X,rho_i*g*(grid_r(end)-grid_r(1)),Tb);
                     beta_w = ammonia_compressibility(X,rho_i*g*(grid_r(end)-grid_r(1)),Tb);
-                    
+
                     % compute the melting temperature for the new NH3 content at
                     % the ocean-ice interface:
                     Tmelt = ammonia_melting(X);
                     Tb = Tmelt;
                     dzdt = delta_rb/dt;
-                    
+
                     if (Ri-z-delta_rb <= Rc)
                         % code seems to get very unstable when the ocean is too
                         % thin...
@@ -338,15 +338,15 @@ for iAmmonia = 1:nammonia
                     end
                     % calculate new ocean pressure (Manga and Wang 2007, equation 5)
                     Pex_pred = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*(delta_rb*(rho_w-rho_i)/rho_w-ur_last(1)); % ur_last because we don't yet know the uplift
-                    
+
                     new_grid_r = linspace(Ri-z,Ro,nr);
                     dTdr_last = (T_last(2)-Tb)/(grid_r(2)-grid_r(1));
                     [T_last,sigma_r_last,sigma_t_last,er_last,et_last] = interpolate_solution(new_grid_r,grid_r,T_last,sigma_r_last,sigma_t_last,er_last,et_last,Tb);
                     grid_r = new_grid_r; % end interpolation step
-                    
+
                     % 2. form discrete operators and solve the heat equation
                     [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt,delta_rb);
-                    
+
                     % 3. Nonlinear loop over pressure.
                     % because the ocean pressure depends on the uplift, we make a guess
                     % (above). Using this guess, we calculate stresses, strains, and
@@ -366,14 +366,14 @@ for iAmmonia = 1:nammonia
                         else
                             Pex = Pex_last;
                         end
-                        
+
                         % compute height to which water would rise
                         [ptmp,Ttmp,ztmp,rhotmp] = ammonia_adiabatic_profile(X,g*rho_i*(grid_r(end)-grid_r(1)),g);
                         rhobar = cumtrapz(ztmp,rhotmp);
                         rhobar = 1/(ztmp(end)-ztmp(1))*rhobar(end);
-                        
+
                         Pex_crit = (rhobar-rho_i)*(Ro-(Ri-z))*g;
-                        
+
                         % calculate viscosity at each node
                         visc_converged = false;
                         visc_iter = 100;
@@ -385,8 +385,8 @@ for iAmmonia = 1:nammonia
                             else
                                 siiD = siiD_post;
                             end
-                            
-                            
+
+
                             mu_node = zeros(nr,1);
                             mu_node(:) = mu(T,siiD);
                             % reduce Maxwell time in region experiencing failure
@@ -397,7 +397,7 @@ for iAmmonia = 1:nammonia
                                     urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
                                     volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
                                 else
-                                    pressure_contribution = 0;  
+                                    pressure_contribution = 0;
                                     volume_contribution = 0;
                                 end
                                 % reset stresses and uplift
@@ -430,7 +430,7 @@ for iAmmonia = 1:nammonia
                                     Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
                                 end
                             end
-                            
+
                             % Calculate Stresses
                             [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
                             siiD_post = sqrt( 0.5*(sigma_rD.^2 + 2*sigma_tD.^2) );
@@ -441,7 +441,7 @@ for iAmmonia = 1:nammonia
                             elseif norm_change < 1e-4
                                 visc_converged = true;
                             end
-                            
+
                             ivisc = ivisc+1;
                         end
                         if all(failure_mask)
@@ -449,7 +449,7 @@ for iAmmonia = 1:nammonia
                             erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
                             erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
                         end
-                        
+
                         % 5. Calculate the strains
                         dT = T-T_last;
                         dr1 = grid_r(2)-grid_r(1);
@@ -462,7 +462,7 @@ for iAmmonia = 1:nammonia
                         dTdr_b = coef(2);
                         %             dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
                         dT(1) = delta_rb*dTdr_b;
-                        
+
                         dsigma_t = sigma_t - sigma_t_last;
                         dsigma_r = sigma_r - sigma_r_last;
                         %             mu_node(2:end-1) = exp(0.5*(log(mu_node(1:end-2))+log(mu_node(3:end))));
@@ -471,19 +471,19 @@ for iAmmonia = 1:nammonia
                         er = er_last + de_r;
                         et = et_last + de_t;
                         ur = grid_r'.*et; %radial displacement
-                        
+
                         ei = 2*de_t + de_r; % first invariant of strain
                         de_tD = de_t - 1/3*ei;
                         de_rD = de_r - 1/3*ei;
                         eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric strain
-                        
+
                         % re-calculate excess pressure using new uplift
                         %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
                         Pex_post = Pex_last + 3*(Ri-z)^2/beta_w/((Ri-z)^3-Rc^3)*((z-z_last)*(rho_w-rho_i)/rho_w-(ur(1)-ur_last(1)));
                         % Calculate the critical excess presssure necessary to
                         % erupt water onto the surface.
                         %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
-                        
+
                         % check for convergence
                         if abs( Pex_post-Pex )/abs(Pex) < 1e-2 || abs(Pex_post-Pex) < 1e2
                             fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
@@ -491,14 +491,14 @@ for iAmmonia = 1:nammonia
                         elseif iter==maxiter
                             error('Nonlinear loop failed to converge');
                         end
-                        
+
                         pex_store(iter) = Pex;
                         pexpost_store(iter) = Pex_post;
                         if converged
                             break;
                         end
                     end%end nonlinear loop
-                    
+
                     % 5. Determine whether tensile failure has occurred
                     failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho_i,g,tensile_strength);
                     if(any(failure)) % failure is occurring
@@ -508,7 +508,7 @@ for iAmmonia = 1:nammonia
                         fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
                         fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
                         fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
-                        
+
                         % check to see if a crack could propagate to surface
                         % 1. Find the midpoint of the crack
                         % 2. Look upward - balance stresses on crack in upward
@@ -556,20 +556,20 @@ for iAmmonia = 1:nammonia
                         results.failure_time(ifail) = time/seconds_in_year/1e6;
                         results.failure_P(ifail) = Pex;
                         results.failure_Pex_crit(ifail) = Pex_crit;
-                        
+
                         results.failure_top(ifail) = min_depth;
                         results.failure_bottom(ifail) = max_depth;
                         results.failure_sigma_t{ifail} = sigma_t;
                         results.failure_sigma_r{ifail} = sigma_r;
                         results.failure_r{ifail} = grid_r;
-                        
-                        
+
+
                         results.failure_z(ifail) = ztmp(end);
-                        
+
                         ifail = ifail + 1;
                         now_failing = depth >= min_depth & depth <= max_depth;
                         failure_mask = failure_mask | now_failing;
-                        
+
                         %                 failure_mask = false(size(sigma_r));
                         %                 failure_mask(failure) = true;
                         failure_time(now_failing) = time+dt;
@@ -580,9 +580,9 @@ for iAmmonia = 1:nammonia
                         end
                         if all(failure_mask) && any(failure_mask(no_longer_failing))
                             %if erupted_volume > 0
-                                results.failure_erupted_volume(ifail-1) = erupted_volume;
-                                results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
-                                results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
+                            results.failure_erupted_volume(ifail-1) = erupted_volume;
+                            results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
+                            results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
                             %end
                             erupted_volume = 0;
                             erupted_volume_volumechange = 0;
@@ -597,7 +597,7 @@ for iAmmonia = 1:nammonia
                     % 5.5 step the eccentricity
                     energy_change = tidal_heating*4*pi*(grid_r(1))^2*dt;
                     eccentricity = eccentricity_last - (1-eccentricity_last^2)/eccentricity_last*a_over_GMm*energy_change;
-                    
+
                     %5.75 consider resetting stresses if ice shell is
                     %thinning?
                     P_oceantop = (rho_i)*(Ro-(Ri-z))*g + Pex;
@@ -613,8 +613,8 @@ for iAmmonia = 1:nammonia
                         disp(sprintf('Underpressure criterion reached - boiling begins! Ice shell thickness = %f km',(Ro-(Ri-z))/1e3));
                         break;
                     end
-                    
-                    
+
+
                     % 6. advance to next time step and plot (if needed)
                     eccentricity_last = eccentricity;
                     sigma_r_last = sigma_r;
@@ -626,12 +626,12 @@ for iAmmonia = 1:nammonia
                     z_last = z;
                     ur_last = ur;
                     Pex_last = Pex;
-                    
+
                     time = time + dt;
-                    
+
                     if (time >= plot_times(iplot) || time >= t_end )
                         iplot = iplot+1;
-                        
+
                         figure(hf);
                         subplot(1,4,1);
                         h=plot(sigma_r,Ro-grid_r);
@@ -643,23 +643,23 @@ for iAmmonia = 1:nammonia
                         plot(T,Ro-grid_r);
                         subplot(1,4,4);
                         plot(ur,Ro-grid_r);
-                        
-                        
+
+
                         figure(hf2);
                         plot(ur(end),sigma_t(end),'.'); hold on;
-                        
+
                         figure(fig1a.h); % Nimmo's Figure 1a
                         h=plot(fig1a.ax(1),(Ro-grid_r)/1e3,sigma_t_last/1e6);
                         plot(fig1a.ax(2),(Ro-grid_r)/1e3,T_last,'--','Color',h.Color);
-                        
-                        
+
+
                         last_plot_time = time;
                         drawnow();
                     end
                     if (time-last_store >= save_interval || time >= t_end || any(failure_mask))
                         % sigma_t_store(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
                         % time_store(isave) = time;
-                        
+
                         results.time(isave) = time;
                         results.eccentricity(isave) = eccentricity;
                         results.thickness(isave) = grid_r(end)-grid_r(1);
@@ -683,14 +683,14 @@ for iAmmonia = 1:nammonia
                 mask = 1:(isave-1);
 
                 %% Pseudocolor stress plot
-                xscale = 'linear';               
+                xscale = 'linear';
                 figure();
                 t=tiledlayout(3,1,'TileSpacing','tight','Padding','none');
-                         t.Units = 'centimeters';
-                         t.OuterPosition = [1 1 8.89 10];
+                t.Units = 'centimeters';
+                t.OuterPosition = [1 1 8.89 10];
 
                 nexttile
-                
+                % TEMPERATURE
                 contourf(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.T(:,mask),64,'Color','none'); %shading flat;
                 hold on
                 contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.T(:,mask),8,'Color','k');
@@ -714,10 +714,14 @@ for iAmmonia = 1:nammonia
                 for i=1:ifail-1
                     plot(results.failure_time(i)*1e6*[1 1]/1e3,[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
                 end
-
+                %TENSILE STRESS
                 nexttile
-                contourf(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
+                phydro = rho_i*g*repmat(save_depths',[1 length(results.time)]);
+                extra_label = ['phydro'];
+                contourf(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6-phydro(:,mask)/1e6,64,'Color','none'); %shading flat;               
                 hold on
+                contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6-phydro(:,mask)/1e6,[1 1],'Color','r'); %shading flat;               
+
                 plot(results.time(mask)/seconds_in_year/1e3,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
                 %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
                 set(gca,'YDir','reverse');
@@ -731,8 +735,8 @@ for iAmmonia = 1:nammonia
                 ax1.CLim = max(abs(ax1.CLim))*[-1 1];
                 set(ax1,'Colormap',crameri('-roma'));
                 text(0.025,0.85,char(start_letter+1),'FontSize',12,'Units','normalized');%panellabel
-             
-                
+
+
                 % xlabel('Time (kyr)');
                 % title(label);
                 ylabel('Depth (km)');
@@ -745,17 +749,17 @@ for iAmmonia = 1:nammonia
                 nexttile
                 plot_totalp = true
                 if plot_totalp
-                
-                plot(results.time(mask)/seconds_in_year/1e3,results.Poceantop(mask)/1e6);
-                ylabel('Pressure at Ocean (MPa)');
+
+                    plot(results.time(mask)/seconds_in_year/1e3,results.Poceantop(mask)/1e6);
+                    ylabel('Pressure at Ocean (MPa)');
                 else
                     plot(results.time(mask)/seconds_in_year/1e3,results.Pex(mask)/1e6);
                     ylabel('P_{ex} (MPa)');
                     hold on
                     plot(results.failure_time(1:ifail-1)*1e6/1e3,results.failure_P(1:ifail-1)/1e6,'r.');
-                end_color = [0 0.9 0];
-                plot(results.failure_time(1:ifail-1)*1e6/1e3,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1))/1e6,'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
-                plot(results.time(mask)/seconds_in_year/1e3,results.Pex_crit(mask)/1e6,'k-');
+                    end_color = [0 0.9 0];
+                    plot(results.failure_time(1:ifail-1)*1e6/1e3,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1))/1e6,'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
+                    plot(results.time(mask)/seconds_in_year/1e3,results.Pex_crit(mask)/1e6,'k-');
                 end
                 text(0.025,0.85,char(start_letter+2),'FontSize',12,'Units','normalized');
 
@@ -763,8 +767,8 @@ for iAmmonia = 1:nammonia
                 ax2 = gca();
                 ax2.Position(3) = ax1.Position(3);
                 ax2.XLim = ax1.XLim;
-                ax2.FontSize=8;                
-                
+                ax2.FontSize=8;
+
                 xlabel('Time (kyr)');
                 % nexttile
                 % hold on;
@@ -772,12 +776,12 @@ for iAmmonia = 1:nammonia
                 %     if isnan(results.failure_erupted_volume(i))
                 %         % plot nothing
                 %     else
-                %         if results.failure_P(i) - results.failure_Pex_crit(i) > 0 
+                %         if results.failure_P(i) - results.failure_Pex_crit(i) > 0
                 %             plot(results.failure_time(i)*1e6*[1 1]/1e3,[0 1],'b');
                 %         else
                 %             plot(results.failure_time(i)*1e6*[1 1]/1e3,[0 1],'b--');
                 %         end
-                %     end                    
+                %     end
                 % end
                 % ylabel('Eruption?');
                 % xlabel('Time (kyr)');
@@ -788,7 +792,7 @@ for iAmmonia = 1:nammonia
                 % ax3.Box = 'on';
                 % ax3.FontSize=8;
                 % text(0.025,0.85,char('C'),'FontSize',12,'Units','normalized');
-                % 
+                %
                 % nexttile;
                 % plot(results.time(mask)/seconds_in_year/1e3,results.XNH3(mask),'k');
                 % set(gca,'XScale',xscale);
@@ -796,7 +800,7 @@ for iAmmonia = 1:nammonia
                 % xlabel('Time (kyr)');
                 % ax4=gca();
                 % ax4.FontSize=8;
-                % 
+                %
                 % set(gca,'XLim',ax1.XLim);
                 % nexttile;
                 % plot(results.time(mask)/seconds_in_year/1e3,results.eccentricity(mask),'k');
@@ -809,12 +813,12 @@ for iAmmonia = 1:nammonia
 
                 fig = gcf();
 
-                
+
                 fig.Color = 'w';
-                filename = sprintf('%s_thinning_nh3-%f_h0-%f_tadjust-%e.pdf',label,initial_ammonia(iAmmonia),...
-                    (Ro-Ri)/1e3,tadjust);
+                filename = sprintf('%s_thinning_nh3-%f_h0-%f_tadjust-%e-%s.pdf',label,initial_ammonia(iAmmonia),...
+                    (Ro-Ri)/1e3,tadjust,extra_label);
                 exportgraphics(gcf,filename,'ContentType','vector');
-                %% 
+                %%
                 % figure();
                 % plot(results.eccentricity(1:isave-1),results.thickness(1:isave-1)/1e3);
                 % set(gca,'XLim',[.001 .05 ],'YLim',[0 70]);
@@ -824,7 +828,7 @@ for iAmmonia = 1:nammonia
                 % filename = sprintf('eccentricity-thickness-%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
                 %     (Ro-Ri)/1e3);
                 % exportgraphics(gcf,filename,'ContentType','vector');
-                
+
                 %% find shell thickness associated with present eccentricity
                 % present_eccentricity = .0196;
                 % [~,ind] = min( abs( results.eccentricity-present_eccentricity ));
