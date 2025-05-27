@@ -27,15 +27,16 @@ nthick = 1;
 initial_ammonia = [ 0.0 ];
 % thicknesses = [ 70e3 ];
 reset_stresses = false;
+tensile_strength = 3e6; % tensile strength, Pa
 
 Qnew = 5e-2; % basal heat flux
 % adjustment timescale from original heat flux to new heat flux
-tadjust = 1e8*3.15e7; % -1 for FAST thinning
+tadjust = -1%1e8*3.15e7; % -1 for FAST thinning
 %thicknesses = [3e3 30e3 ];
 
 for iAmmonia = 1:nammonia
     for ithick = 1:nthick
-        clearvars -except reset_stresses ithick iAmmonia nammonia failure_thickness failure_times nrs nthick thicknesses initial_ammonia tadjust Qnew
+        clearvars -except tensile_strength reset_stresses ithick iAmmonia nammonia failure_thickness failure_times nrs nthick thicknesses initial_ammonia tadjust Qnew
 
         for isetup = [2 4]
             viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
@@ -47,14 +48,14 @@ for iAmmonia = 1:nammonia
                 Rc = 1.94e5;         % core radius (m)
                 g = 0.113;        % used to calculate failure, m/s/s
                 max_depth = 6.5e4;% maximum depth for saving/plotting output
-                Ts=80;
+                Ts=60;
                 a_over_GMm = 0.0;%1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
 
                 relaxation_parameter=1e-3; % used in nonlinear loop.
                 X0 = 0.0;
                 e0 = 0.0;
                 label = 'Enceladus';
-                start_letter = 'A';
+                start_letter = 'a';
 
             elseif isetup == 4 % Mimas
                 Ro = 1.982e5;            % outer radius of ice shell (m)
@@ -63,7 +64,7 @@ for iAmmonia = 1:nammonia
                 e0 = 2.5*0.0196;           % starting eccentricity
                 max_depth = Ro-Rc;
                 g = 0.064;      % used to calculate failure, m/s/s
-                Ts=80; % Surface temperature (K)
+                Ts=60; % Surface temperature (K)
                 core_type = 2; % 1 for rigid core - set Ts to 60K; 2 for fluffy core - set Ts to 80K
                 % constants
                 a_over_GMm = 1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
@@ -75,7 +76,7 @@ for iAmmonia = 1:nammonia
                 %V0 = 4/3*pi*(Ro^3-Ri^3); % Initial volume of ice shell?
 
                 label = 'Mimas';
-                start_letter = 'D';
+                start_letter = 'd';
             else
                 error('not implemented');
             end
@@ -121,7 +122,6 @@ for iAmmonia = 1:nammonia
                 Qbelow = @(time,dummy) deal(Qbelow1(time),Qbelow1(time)); % additional basal heat flux production in W/m^2
 
                 % Failure criterion:
-                tensile_strength = 3e6; % tensile strength, Pa
                 cohesion = 2e7;  % plastic yield strength, MPa
                 friction = 0.6; % friction angle for plastic yielding
                 % Thermal properties
@@ -516,6 +516,7 @@ for iAmmonia = 1:nammonia
                         % 3. If crack reached surface, balance stresses on entire
                         % crack. Otherwise balance stresses in downward direction.
                         sigma_t_tot = sigma_t - rho_i*g*(Ro-grid_r');
+                        sigma_r_tot = sigma_r - rho_i*g*(Ro-grid_r');
                         depth = Ro-grid_r; % depth will be in descending order, i.e. deepest first
                         midpoint_depth = mean(depth([idx_shallow idx_deep]));
                         [~,midpoint_ind] = max( sigma_t_tot );
@@ -693,7 +694,7 @@ for iAmmonia = 1:nammonia
                 % TEMPERATURE
                 contourf(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.T(:,mask),64,'Color','none'); %shading flat;
                 hold on
-                contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.T(:,mask),8,'Color','k');
+                contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.T(:,mask),8,'Color','k','LineWidth',0.25);
                 plot(results.time(mask)/seconds_in_year/1e3,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
                 %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
                 set(gca,'YDir','reverse');
@@ -704,8 +705,10 @@ for iAmmonia = 1:nammonia
                 hcb = colorbar();
                 hcb.Label.String = 'Temperature (K)';
                 ax1.CLim = [Ts 273];
-                set(ax1,'Colormap',parula);
-                text(0.025,0.85,char(start_letter+0),'FontSize',12,'Units','normalized');
+                % set(ax1,'Colormap',colormap_matplotlib('plasma'));
+                set(ax1,'Colormap',sky)
+                % text(0.025,0.85,char(start_letter+0),'FontSize',12,'Units','normalized');
+                text(-0.125,1.0,char(start_letter+0),'FontSize',12,'Units','normalized','FontWeight','bold');
                 % xlabel('Time (kyr)');
                 title(label);
                 ylabel('Depth (km)');
@@ -720,7 +723,7 @@ for iAmmonia = 1:nammonia
                 extra_label = ['phydro'];
                 contourf(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6-phydro(:,mask)/1e6,64,'Color','none'); %shading flat;               
                 hold on
-                contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6-phydro(:,mask)/1e6,[1 1],'Color','r'); %shading flat;               
+                % contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6-phydro(:,mask)/1e6,[1 1],'Color','r'); %shading flat;               
 
                 plot(results.time(mask)/seconds_in_year/1e3,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
                 %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
@@ -733,9 +736,10 @@ for iAmmonia = 1:nammonia
                 hcb = colorbar();
                 hcb.Label.String = 'Tensile Stress (MPa)';
                 ax1.CLim = max(abs(ax1.CLim))*[-1 1];
-                set(ax1,'Colormap',crameri('-roma'));
-                text(0.025,0.85,char(start_letter+1),'FontSize',12,'Units','normalized');%panellabel
-
+                % set(ax1,'Colormap',crameri('-roma'));
+                set(ax1,'Colormap',crameri('vik'));
+                % text(0.025,0.85,char(start_letter+1),'FontSize',12,'Units','normalized');%panellabel
+                text(-0.125,1.0,char(start_letter+1),'FontSize',12,'Units','normalized','FontWeight','bold');
 
                 % xlabel('Time (kyr)');
                 % title(label);
@@ -749,9 +753,8 @@ for iAmmonia = 1:nammonia
                 nexttile
                 plot_totalp = true
                 if plot_totalp
-
-                    plot(results.time(mask)/seconds_in_year/1e3,results.Poceantop(mask)/1e6);
-                    ylabel('Pressure at Ocean (MPa)');
+                    plot(results.time(mask)/seconds_in_year/1e3,results.Poceantop(mask)/1e6,'k');
+                    ylabel('Pressure (MPa)');
                 else
                     plot(results.time(mask)/seconds_in_year/1e3,results.Pex(mask)/1e6);
                     ylabel('P_{ex} (MPa)');
@@ -761,7 +764,7 @@ for iAmmonia = 1:nammonia
                     plot(results.failure_time(1:ifail-1)*1e6/1e3,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1))/1e6,'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
                     plot(results.time(mask)/seconds_in_year/1e3,results.Pex_crit(mask)/1e6,'k-');
                 end
-                text(0.025,0.85,char(start_letter+2),'FontSize',12,'Units','normalized');
+                text(-0.125,1.0,char(start_letter+2),'FontSize',12,'Units','normalized','FontWeight','bold');
 
                 set(gca,'XScale',xscale);
                 ax2 = gca();

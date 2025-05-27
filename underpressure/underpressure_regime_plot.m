@@ -13,10 +13,10 @@ E = 5e9; % Young's modulus, Pa
 nu = 0.33;
 
 initial_frozen_fraction = 1.0; % the initial fraction of the H2O that is frozen
-cohesion = 40e6;          % paper uses values of 12, 20, 40 MPa.
+cohesion = 20e6;          % paper uses values of 12, 20, 40 MPa.
 phi = atand(0.6); % friction angle
 % phi = atand(0.2);
-elastic_fraction = 1/2;
+elastic_fraction = 1/4;
 
 label = sprintf('_initial-%f_strength-%e',initial_frozen_fraction,cohesion);
 
