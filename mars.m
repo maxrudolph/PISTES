@@ -8,7 +8,7 @@
 % 49(5) e2021GL094421
 
 clear;
-close all;
+% close all;
 addpath core; % this is where the helper functions live.
 addpath mars;
 addpath ~/sw/matlab/crameri
@@ -23,9 +23,9 @@ for isetup = 5:5
         max_depth = 4e5; % maximum depth for saving solution values (m)
         relaxation_parameter = 1e-3; % used for fixed point iteration in pressure convergence loop.
         t_end = 4500e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
-        dtmax = 1e6*seconds_in_year;
+        dtmax = 5e6*seconds_in_year;
         dtmin = 100*seconds_in_year;%*seconds_in_year;
-        no_stress_time = 1.0e9*seconds_in_year; % time before which stresses are not allowed to increase
+        no_stress_time = 1.5e9*seconds_in_year; % time before which stresses are not allowed to increase
 
         % Stuff related to the Mars thermal evolution model
         arh =2.0;   % constant from Michaut equation 12
@@ -667,9 +667,40 @@ for isetup = 5:5
             end
         end
         %%
-        mask = 1:(isave-1);
+
+        % compute (sigma_t-sigma_r)
+
 
         %% Pseudocolor stress plot
+        mask = 1:(isave-1); % select only timesteps that exist
+        results.differential_stress = results.sigma_t - results.sigma_r; % differential stress
+        ds_max_depth = zeros(1,isave-1);
+        for i=1:isave-1
+            [~,ind] = max(results.differential_stress(:,i));
+            ds_max_depth(i) = save_depths(ind);
+        end
+        figure, plot(results.time(mask)/seconds_in_year/1e6,ds_max_depth);
+
+        %% plot a coulomb failure criterion
+        tau_m = 0.5*abs(results.sigma_t-results.sigma_r);
+        plith = zeros(size(results.sigma_t));
+        for i=2:length(save_depths)
+            if save_depths(i) <= h_crust
+                rho1 = rhoc;
+            else
+                rho1 = rho;
+            end
+            plith(i,:) = plith(i-1,:) - rho1*g*(save_depths(i)-save_depths(i-1));
+        end
+        % plot coulomb failure criterion
+        sigma_m = 0.5*(results.sigma_t+plith + results.sigma_r+plith);
+        phi = atand(0.6);
+        cohesion = 0.0;
+        strength = cohesion*cosd(phi) - sigma_m*sind(phi);        
+        % Plot strength envelope from Mueller and Phillips 1995
+        delta_sigma = -0.786*plith;
+        
+
         xscale = 'linear';
         ax=[];
         figure();
@@ -677,17 +708,21 @@ for isetup = 5:5
         % t.Units = 'centimeters';
         % t.OuterPosition = [1 1 11 14];
         nexttile
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
+        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
-        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.sigma_t(:,mask)/1e6,[0 0],'k--'); %
+        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
+        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,tau_m(:,mask) - strength(:,mask),[0 0],'Color','r','LineStyle','--'); %
+        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,abs(results.differential_stress(:,mask))-delta_sigma(:,mask),[0 0],'Color','g','LineStyle','--'); %
+contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+
         plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
         set(gca,'YDir','reverse');        
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
-        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
+        stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
         caxis([-1 1]*stmax)
-        hcb.Label.String = '\sigma_t (MPa)';
+        hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
         text(0.025,0.85,char('A'),'FontSize',12,'Units','normalized');
         % xlabel('Time (years)');
         % title(label);
@@ -699,6 +734,10 @@ for isetup = 5:5
         contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
         plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        hold on
+contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+
+        
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
         set(gca,'YDir','reverse');        
         hcb = colorbar();
@@ -783,8 +822,10 @@ for isetup = 5:5
 
         fig = gcf();
         fig.Position(3:4) = [385   650];
-        set(t.Children,'XTickLabel',[])
-        set(gca,'XTickLabel',0:500:4500)
+        axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
+
+        % set(t.Children(axmask),'XTickLabel',[])
+        % set(gca,'XTickLabel',0:500:4500)
 
         fig.Color = 'w';
         filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
