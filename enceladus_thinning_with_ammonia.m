@@ -822,7 +822,19 @@ for iAmmonia = 1:nammonia
                     (Ro-Ri)/1e3,tadjust,extra_label);
                 exportgraphics(gcf,filename,'ContentType','vector');
                 %%
+                figure();               
+                sigma_t_tot = sigma_t - rho_i*g*(Ro-grid_r');hold on
+                sigma_r_tot = sigma_r - rho_i*g*(Ro-grid_r');
+                plot(sigma_r_tot,grid_r,'-');
+                plot(sigma_t_tot,grid_r,'--');
+                text(0.1,0.1,sprintf('rmax,tmax=%.2e , %.2e',max(sigma_r_tot),max(sigma_t_tot)),'Units','normalized');
+                title(label)
+                legend('r','t');
+
+%%
+
                 % figure();
+
                 % plot(results.eccentricity(1:isave-1),results.thickness(1:isave-1)/1e3);
                 % set(gca,'XLim',[.001 .05 ],'YLim',[0 70]);
                 % set(gca,'XDir','reverse');
