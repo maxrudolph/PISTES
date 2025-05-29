@@ -711,9 +711,9 @@ for isetup = 5:5
         contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
         contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
-        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,tau_m(:,mask) - strength(:,mask),[0 0],'Color','r','LineStyle','--'); %
-        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,abs(results.differential_stress(:,mask))-delta_sigma(:,mask),[0 0],'Color','g','LineStyle','--'); %
-contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,tau_m(:,mask) - strength(:,mask),[0 0],'Color','r','LineStyle','--'); %
+        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,abs(results.differential_stress(:,mask))-delta_sigma(:,mask),[0 0],'Color','g','LineStyle','--'); %
+        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
 
         plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
@@ -731,11 +731,13 @@ contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask
         set(gca,'YLim',[0 50]);
 
         nexttile
+        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
+
         contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
         plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         hold on
-contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
 
         
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
@@ -744,7 +746,7 @@ contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask
         set(gca,'Colormap',crameri('-roma'))
         stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
         caxis([-1 1]*stmax)
-        hcb.Label.String = '\sigma_t (MPa)';
+        hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
         text(0.025,0.85,char('A'+1),'FontSize',12,'Units','normalized');
         % xlabel('Time (years)');
         % title(label);
@@ -824,8 +826,8 @@ contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask
         fig.Position(3:4) = [385   650];
         axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
 
-        % set(t.Children(axmask),'XTickLabel',[])
-        % set(gca,'XTickLabel',0:500:4500)
+        set(t.Children(axmask),'XTickLabel',[])
+        set(gca,'XTickLabel',get(gca,'XTick'))       
 
         fig.Color = 'w';
         filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
