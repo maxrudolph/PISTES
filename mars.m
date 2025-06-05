@@ -21,7 +21,7 @@ for isetup = 5:5
         label='Mars';
         seconds_in_year = 3.1558e7;
         max_depth = 4e5; % maximum depth for saving solution values (m)
-        relaxation_parameter = 1e-3; % used for fixed point iteration in pressure convergence loop.
+        relaxation_parameter = 1e-3;%1e-3; % used for fixed point iteration in pressure convergence loop.
         t_end = 4500e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
         dtmax = 5e6*seconds_in_year;
         dtmin = 100*seconds_in_year;%*seconds_in_year;
@@ -52,6 +52,8 @@ for isetup = 5:5
         K_eff = 4e11;           % effective bulk modulus of mantle+core (Pa)
         alpha_v = 2.5e-5;       % volumetric thermal expansivity (1/K)
         alpha_l = alpha_v/3;    % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
+        alpha_v_bl = alpha_v;  % define the alpha_v for the lid evolution separatey so that we can isolate it later.
+        % alpha_v = 0; % eliminate mantle shrinkage...
 
         % Heat transport properties:
         Cp = 1150;              % specific heat capacity, J/kg/K
@@ -261,15 +263,14 @@ for isetup = 5:5
             % total_heating = 0; % for now, to obtain a solution.
             % qb_net = qb - total_heating; % first term is conducted heat. second term is heat supplied from below.
 
-            % Implement the thermal evolution model...
-            % compute
+            % Implement the thermal evolution model...            
             D = Ro-Ri-z_last; % z is the amount by which the lid has thickened
             mantle_volume = 4/3*pi*((Ro-D)^3-Rc^3);
             Cm = rho*Cp*mantle_volume; % mantle heat capacity
             Slid = 4*pi*(Ro-D)^2;
             h_conv = mantle_heating_factor*rho*mars_heating(time/seconds_in_year); % mantle volumetric heat production
             % boundary layer heat transport into the lid:
-            qbl = C*k(Tm)*(alpha_v*rho*g/kappa/mu(Tm,0))^(1/3)*dTnu(Tm)^(4/3);
+            qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,0))^(1/3)*dTnu(Tm)^(4/3);
             % temperature difference across the boundary layer:
             DTbl = arh*dTnu(Tm);
             Tl = Tm-DTbl;% temp at base of conductive layer
@@ -680,6 +681,7 @@ for isetup = 5:5
             ds_max_depth(i) = save_depths(ind);
         end
         figure, plot(results.time(mask)/seconds_in_year/1e6,ds_max_depth);
+        ylabel('Depth of max. differential stress')
 
         %% plot a coulomb failure criterion
         tau_m = 0.5*abs(results.sigma_t-results.sigma_r);

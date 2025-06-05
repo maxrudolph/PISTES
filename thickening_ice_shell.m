@@ -10,7 +10,7 @@ addpath core; % this is where the helper functions live.
 nrs = [512];%[512];
 failure_times = 0*nrs;
 failure_thickness = 0*nrs;
-for isetup = 3:3
+for isetup = 2:2
     viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
     viscosity.d = 1e-3; % grain size in m used to calculate the viscosity
     viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity
@@ -27,7 +27,7 @@ for isetup = 3:3
         label = 'Europa';
     elseif isetup == 2    % Enceladus
         Ro = 2.52e5;            % outer radius of ice shell (m)
-        Ri = Ro-1.0e3;          % inner radius of ice shell (m)
+        Ri = Ro-2.0e3;          % inner radius of ice shell (m)
         Rc = Ro-1.60e5;         % core radius (m)
         g = 0.113;        % used to calculate failure, m/s/s
         max_depth = 3.5e4;
@@ -112,7 +112,7 @@ for isetup = 3:3
             mu = @(T,stress) goldsby_kohlstedt(stress,T,viscosity.d,viscosity.P); % Goldsby-Kohlstedt effective viscosity
         end
         % Failure criterion:
-        tensile_strength = 3e6; % tensile strength, Pa
+        tensile_strength = 1e99;%3e6; % tensile strength, Pa
         cohesion = 2e7;  % plastic yield strength
         friction = 0.6; % friction angle for plastic yielding
         % Thermal properties
@@ -134,9 +134,9 @@ for isetup = 3:3
         fprintf('Thermal diffusion timescale %.2e\n',(4e4)^2/kappa);
         % set end time and grid resolution
         
-        t_end = 1e9*seconds_in_year;%  3*perturbation_period;
+        t_end = 1e7*seconds_in_year;%  3*perturbation_period;
         % dt = 1e4*seconds_in_year; % time step in seconds
-        dtmax = 1e6*seconds_in_year;
+        dtmax = 1e4*seconds_in_year;
         dtmin = 3600;%*seconds_in_year;
         % dt1 = 3600; % size of first timestep
         % times = logspace(log10(dt1),log10(t_end+dt1),1e4)-dt1;
@@ -293,6 +293,9 @@ for isetup = 3:3
             grid_r = new_grid_r; % end interpolation step
             
             % 2. form discrete operators and solve the heat equation
+            H = zeros(size(T_last));
+
+
             [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt,delta_rb);
             
             % 3. Nonlinear loop over pressure.
@@ -626,7 +629,7 @@ for isetup = 3:3
         
         %% Pseudocolor stress plot
         figure();
-        t=tiledlayout(3,1,'TileSpacing','none','Padding','none');
+        t=tiledlayout(3,1,'TileSpacing','tight','Padding','none');
         t.Units = 'centimeters';
         t.OuterPosition = [1 1 9.5 9];
         nexttile
