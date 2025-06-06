@@ -12,19 +12,15 @@ beta = 4e-10; % ocean compressibility Pa^-1
 E = 5e9; % Young's modulus, Pa
 nu = 0.33;
 
-initial_frozen_fraction = 1.0; % the initial fraction of the H2O that is frozen
-for uniaxial_compressive_strength = [20e6 40e6 70e6]% paper uses values of 20, 40, 70 MPa.
+initial_frozen_fraction = 0.5; % the initial fraction of the H2O that is frozen - 1.0 in main text, 0.5 in supplement
+for uniaxial_compressive_strength = [40e6]% 70e6 20e6]% paper uses values of 20, 40, 70 MPa.
     cohesion_phi0 = uniaxial_compressive_strength/2;
-    muf = 0.6;
+    muf = 0.6;%0.6 in paper
     phi = atand(muf); % friction angle
-    cohesion_phi_p6 = uniaxial_compressive_strength/2/(sqrt(1+muf^2)+muf);
+    cohesion_phi_p6 = uniaxial_compressive_strength/2/(sqrt(1+muf^2)+muf);    
+    elastic_fraction = 1/2;% paper uses 1/2 in main text, 1/4 shown in supplement
 
-    % cohesion = 20e6;
-
-    % phi = atand(0.2);
-    elastic_fraction = 1/4;
-
-    label = sprintf('_initial-%f_strength-%e',initial_frozen_fraction,uniaxial_compressive_strength);
+    label = sprintf('_initial-%f_strength-%e_mu-%f_elasticfraction-%f',initial_frozen_fraction,uniaxial_compressive_strength,muf,elastic_fraction);
 
     % functions for excess pressure & tensile stress
     Pex = @(z_values,ri_values,xi_values,planet) (z_values .* (1-rhoi/rhow)) ./ (beta*(ri_values.^3-planet.rc^3)./(3*ri_values.^2) + ...
