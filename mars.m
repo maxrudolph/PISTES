@@ -13,7 +13,20 @@ addpath core; % this is where the helper functions live.
 addpath mars;
 addpath ~/sw/matlab/crameri
 
-nrs = [128]; % number of points used in the radial direction
+% parameters to vary across models
+% crustal thickness
+% crustal heat production 0.3-0.7
+% length of initial stress-free time
+% rheology (arrhenius vs. power law)
+% rheology (reference viscosity)
+
+% compute
+% depth of maximum differential stress
+% depth of transition from compression to tension
+% for crust_heat_fraction = [0.3 0.5 0.7]
+
+
+nrs = [256]; % number of points used in the radial direction
 
 for isetup = 5:5
     if isetup == 5 % Mars
@@ -37,7 +50,7 @@ for isetup = 5:5
         viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
         mub=3e20;               % Reference viscosity (at reference temperature)
         Tref = 1600;            % Reference temperature, Kelvin.
-        Q=300;                  % value from Michaut et al. 2025
+        Q=300;                  % value from Michaut et al. 2025, kJ/mol
         R=8.314e-3;             % in kJ/mol/K
         mu = @(T,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
         dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
@@ -48,7 +61,7 @@ for isetup = 5:5
 
         % Mechanical properties
         nu = 0.25;              % Poisson ratio of lithosphere (-)
-        E = 0.8e11;             % shear modulus of lithosphere (Pa) MAX: 5e9 (T&S Appendix B5, for basalt/gabbro)
+        E = 0.8e11;             % shear modulus of lithosphere (Pa) (T&S Appendix B5, for basalt/gabbro)
         K_eff = 4e11;           % effective bulk modulus of mantle+core (Pa)
         alpha_v = 2.5e-5;       % volumetric thermal expansivity (1/K)
         alpha_l = alpha_v/3;    % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
@@ -56,7 +69,7 @@ for isetup = 5:5
         % alpha_v = 0; % eliminate mantle shrinkage...
 
         % Heat transport properties:
-        Cp = 1150;              % specific heat capacity, J/kg/K
+        Cp = 1150;            % specific heat capacity, J/kg/K
         k = @(T) 4;           % Thermal conductivity, W/m/K (Thieriet et al., 2019)
 
         % Initial and boundary conditions
@@ -74,7 +87,7 @@ for isetup = 5:5
         Ri = Ro-thickness;  % initial inner radius of lithosphere
         Rc = 1.830e6;       % core radius, m (Samuel et al., 2023)
         h_crust = 60e3;     % crust thickness (assumed constant)
-        crust_heat_fraction = 0.6; % fraction of primitive mantle heat production concentrated within crust
+        crust_heat_fraction = 0.5; % fraction of primitive mantle heat production concentrated within crust
         mars_mass = 6.4169e23;
         silicate_mass = 0.75*mars_mass; % assuming core 25% as in Khan et al. 2022 EPSL
         silicate_density = silicate_mass / (4/3*pi*(Ro^3-Rc^3));% density of bulk silicate mars
@@ -126,7 +139,7 @@ for isetup = 5:5
         nsave_depths = length(save_depths);
         sigma_t_store = zeros(nsave_depths,nsave);
 
-        results.time = zeros(nsave,1);
+        results.time = NaN*zeros(nsave,1); results.time(1) = 0;
         results.thickness = zeros(nsave,1); results.thickness(1) = Ro-Ri;
         results.z = zeros(nsave,1);
         results.Ri = zeros(nsave,1); results.Ri(1) = Ri;
@@ -152,6 +165,9 @@ for isetup = 5:5
         results.failure_erupted_volume = NaN*zeros(1,nsave);
         results.failure_erupted_volume_pressurechange = NaN*zeros(1,nsave);
         results.failure_erupted_volume_volumechange = NaN*zeros(1,nsave);
+        results.stresss_crossover_depth = NaN*zeros(1,nsave);
+        results.maximum_differential_stress = NaN*zeros(1,nsave);
+        results.maximum_stress_depth = NaN*zeros(1,nsave);
         erupted_volume = 0;
         erupted_volume_pressurechange = 0;
         erupted_volume_volumechange = 0;
@@ -263,7 +279,7 @@ for isetup = 5:5
             % total_heating = 0; % for now, to obtain a solution.
             % qb_net = qb - total_heating; % first term is conducted heat. second term is heat supplied from below.
 
-            % Implement the thermal evolution model...            
+            % Implement the thermal evolution model...
             D = Ro-Ri-z_last; % z is the amount by which the lid has thickened
             mantle_volume = 4/3*pi*((Ro-D)^3-Rc^3);
             Cm = rho*Cp*mantle_volume; % mantle heat capacity
@@ -473,7 +489,7 @@ for isetup = 5:5
                 % Calculate the critical excess presssure necessary to
                 % erupt water onto the surface.
                 %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
-            
+
                 % check for convergence
                 if abs( Pex_post-Pex )/abs(Pex) < 1e-3 || abs(Pex_post-Pex) < 1e2
                     fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
@@ -662,6 +678,21 @@ for isetup = 5:5
                 results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
                 results.Tb(isave) = Tb;
                 results.Pex(isave) = Pex;
+
+                [strtmp,indtmp] = max(sigma_t-sigma_r);
+                results.maximum_differential_stress(isave) = strtmp;
+                results.maximum_stress_depth(isave) = Ro-grid_r(indtmp);
+                [indtmp] = find( sigma_t-sigma_r >= 0,1,'last'); %shallowest value where sigma_t > sigma_r
+                if indtmp < nr
+                    ytmp = sigma_t(indtmp:indtmp+1)-sigma_r(indtmp:indtmp+1);
+                    dydr = diff(ytmp)/(grid_r(indtmp+1)-grid_r(indtmp));
+                    rtmp = grid_r(indtmp) - ytmp(1)/dydr;
+                else
+                    rtmp = grid_r(indtmp);
+                end
+
+                results.stresss_crossover_depth(isave) = Ro-rtmp;
+
                 % results.Pex_crit(isave) = Pex_crit;
                 % results.XNH3(isave) = X;
                 last_store = time; isave = isave+1;
@@ -673,7 +704,8 @@ for isetup = 5:5
 
 
         %% Pseudocolor stress plot
-        mask = 1:(isave-1); % select only timesteps that exist
+        % mask = 1:(isave-1); % select only timesteps that exist
+        mask = results.time <= time;
         results.differential_stress = results.sigma_t - results.sigma_r; % differential stress
         ds_max_depth = zeros(1,isave-1);
         for i=1:isave-1
@@ -698,15 +730,15 @@ for isetup = 5:5
         sigma_m = 0.5*(results.sigma_t+plith + results.sigma_r+plith);
         phi = atand(0.6);
         cohesion = 0.0;
-        strength = cohesion*cosd(phi) - sigma_m*sind(phi);        
+        strength = cohesion*cosd(phi) - sigma_m*sind(phi);
         % Plot strength envelope from Mueller and Phillips 1995
         delta_sigma = -0.786*plith;
-        
+
 
         xscale = 'linear';
         ax=[];
         figure();
-        t=tiledlayout(6,1,'TileSpacing','compact','Padding','none');
+        t=tiledlayout(7,1,'TileSpacing','compact','Padding','none');
         % t.Units = 'centimeters';
         % t.OuterPosition = [1 1 11 14];
         nexttile
@@ -719,7 +751,7 @@ for isetup = 5:5
 
         plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
-        set(gca,'YDir','reverse');        
+        set(gca,'YDir','reverse');
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
         stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
@@ -741,9 +773,9 @@ for isetup = 5:5
         hold on
         contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
 
-        
+
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
-        set(gca,'YDir','reverse');        
+        set(gca,'YDir','reverse');
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
         stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
@@ -779,7 +811,7 @@ for isetup = 5:5
         nexttile
         plot(results.time(mask)/seconds_in_year/1e6,results.ur(1,mask),'k')
         ylabel('u_r (m)')
-            text(0.025,0.85,char('D'),'FontSize',12,'Units','normalized');
+        text(0.025,0.85,char('D'),'FontSize',12,'Units','normalized');
 
         nexttile
         plot(results.time(mask)/seconds_in_year/1e6,results.Pex(mask)/1e6,'k');
@@ -810,8 +842,21 @@ for isetup = 5:5
         %     end
         % end
         plot(results.time(mask)/seconds_in_year/1e6,results.Tm(mask),'k-');
+        text(0.025,0.85,char('F'),'FontSize',12,'Units','normalized');
 
         ylabel('T_m (K)');
+        nexttile
+        mask1 = mask & results.time>no_stress_time;
+        plot(results.time(mask1)/seconds_in_year/1e6,results.stresss_crossover_depth(mask1)/1e3);
+        hold on
+        plot(results.time(mask1)/seconds_in_year/1e6,results.maximum_stress_depth(mask1)/1e3);
+        legend('zero stress','maximum tension')
+        ylabel('Depth (km)')
+        text(0.025,0.85,char('G'),'FontSize',12,'Units','normalized');
+
+
+
+
         xlabel('Time (years)');
         set(gca,'XScale',xscale);
         % ax3=gca();
@@ -819,20 +864,21 @@ for isetup = 5:5
         % ax3.Position(3) = ax1.Position(3);
         % ax3.Box = 'on';
         % ax3.FontSize=8;
-        text(0.025,0.85,char('F'),'FontSize',12,'Units','normalized');
-        linkaxes(t.Children,'x');
-        set(gca,'XLim',[0 4500]);
+        
+        % set(gca,'XLim',[0 4500]);
 
 
         fig = gcf();
         fig.Position(3:4) = [385   650];
         axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
+        linkaxes(t.Children(axmask),'x');
+        set(gca,'XLim',[0 4500]);
 
         set(t.Children(axmask),'XTickLabel',[])
-        set(gca,'XTickLabel',get(gca,'XTick'))       
+        set(gca,'XTickLabel',get(gca,'XTick'))
 
         fig.Color = 'w';
         filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
-        exportgraphics(gcf,filename,'ContentType','vector');
+        % exportgraphics(gcf,filename,'ContentType','vector');
     end
 end
