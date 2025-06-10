@@ -45,15 +45,22 @@ for isetup = 5:5
         C   =0.5;   % Davaille and Jaupart 1993 constant for heat flux
 
         % Rheology
-        viscosity_model = 2;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
-        viscosity.d = NaN;      %1e-3; % grain size in m used to calculate the viscosity (for G-K)
-        viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
-        mub=3e20;               % Reference viscosity (at reference temperature)
+        viscosity_model = 3;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
+        
         Tref = 1600;            % Reference temperature, Kelvin.
-        Q=300;                  % value from Michaut et al. 2025, kJ/mol
         R=8.314e-3;             % in kJ/mol/K
-        mu = @(T,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
-        dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
+        if viscosity_model == 2
+            mub=3e20;               % Reference viscosity (at reference temperature)
+            Q=300;                  % value from Michaut et al. 2025, kJ/mol
+            mu = @(T,P,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
+            dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
+        elseif viscosity_model==3
+            viscosity.d = 7.08e-3;  %grain size in m. 7.08e-3 gives 3e20 Pa-s at 1 GPa pressure and 0 stress
+            % viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
+            Q=375; % Q used in hirth and kohlstedt model - use it for the mantle too?
+            mu = @(T,P,stress) hirth_kohlstedt(stress,T,viscosity.d,P);
+            dTnu = @(T) R/Q*T^2;
+        end
 
         % crust properties
         rhoc=2900;
@@ -117,6 +124,8 @@ for isetup = 5:5
         label = [label '-goldsbykohlstedt'];
     elseif viscosity_model == 2
         label = [label '-arrhenius']
+    elseif viscosity_model == 3
+        label = [label '-diffdisl']
     else
         error('not implemented');
     end
@@ -128,7 +137,7 @@ for isetup = 5:5
         time=0;
 
         % calculate maxwell time at Ts, Tb.
-        fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(Ts,0)/E,mu(Tb,0)/E);
+        fprintf('Maxwell time at surface, base %.2e %.2e\n',mu(Ts,0,0)/E,mu(Tb,0,0)/E);
         fprintf('Thermal diffusion timescale %.2e\n',(Ro-Ri)^2/kappa);
 
         plot_interval = 5e6*seconds_in_year;
@@ -286,7 +295,7 @@ for isetup = 5:5
             Slid = 4*pi*(Ro-D)^2;
             h_conv = mantle_heating_factor*rho*mars_heating(time/seconds_in_year); % mantle volumetric heat production
             % boundary layer heat transport into the lid:
-            qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,0))^(1/3)*dTnu(Tm)^(4/3);
+            qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,1e9,0))^(1/3)*dTnu(Tm)^(4/3);% note assumes 1 GPa-pressure creep viscosity
             % temperature difference across the boundary layer:
             DTbl = arh*dTnu(Tm);
             Tl = Tm-DTbl;% temp at base of conductive layer
@@ -378,7 +387,14 @@ for isetup = 5:5
                 % rhobar = 1/(ztmp(end)-ztmp(1))*rhobar(end);
 
                 % Pex_crit = (rhobar-rho_lith)*(Ro-(Ri-z))*g;
-
+                
+                % compute hydrostatic pressure (needed for rheology)
+                phydro = zeros(size(T));
+                phydro(end) = 0;
+                for i=(length(phydro)-1):-1:1                    
+                    phydro(i) = phydro(i+1) + rho*g*(grid_r(i+1)-grid_r(i));
+                end
+                    
                 % calculate viscosity at each node
                 visc_converged = false;
                 visc_iter = 100;
@@ -391,9 +407,9 @@ for isetup = 5:5
                         siiD = siiD_post;
                     end
 
-
+                    
                     mu_node = zeros(nr,1);
-                    mu_node(:) = mu(T,siiD);
+                    mu_node(:) = mu(T,phydro,siiD);
                     % reduce Maxwell time in region experiencing failure
                     if all(failure_mask)
                         if Pex_last >= Pex_crit
@@ -759,7 +775,7 @@ for isetup = 5:5
         hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
         text(0.025,0.85,char('A'),'FontSize',12,'Units','normalized');
         % xlabel('Time (years)');
-        % title(label);
+        title(label);
         ylabel('Depth (km)');
         set(gca,'XScale',xscale);
         set(gca,'YLim',[0 50]);
