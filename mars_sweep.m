@@ -8,9 +8,9 @@ parameters.no_stress_time = 3.5e9;
 % parameters.viscosity = 3e20;
 parameters.do_plots = false;
 
-nvisc=6;
-visc = logspace(20,21,nvisc);
-nhf=5;
+nvisc=10;
+visc = logspace(20,22,nvisc);
+nhf=11;
 hf = linspace(0.3,0.7,nhf);
 
 allresults = cell(nvisc,nhf);
@@ -23,16 +23,17 @@ for ivisc=1:nvisc
     end
 end
 
-save(['all_results_' datetime '.mat'])
+save(strcat('all_results_', string(datetime), '.mat'));
 %% Make some plots to explore range from all models
 % plot the crossover depth at the end of the calculation
 max_stress_depth = cellfun( @(x) x.maximum_stress_depth(x.last_isave-1),allresults);
+max_differential_stress = cellfun( @(x) x.maximum_differential_stress(x.last_isave-1),allresults);
 stress_crossover_depth = cellfun( @(x) x.stresss_crossover_depth(x.last_isave-1),allresults);
 mantle_temperature=cellfun( @(x) x.Tm(x.last_isave-1),allresults);
 final_lid_thickness=cellfun( @(x) x.state.Ro-x.state.Ri + x.z(x.last_isave-1),allresults);
 
 figure()
-t=tiledlayout(2,2)%,"TileSpacing","tight","Padding","tight");
+t=tiledlayout(3,2)%,"TileSpacing","tight","Padding","tight");
 nexttile;
 contourf(hf,visc,max_stress_depth/1e3);
 set(gca,'YScale','log')
@@ -64,6 +65,14 @@ colorbar()
 xlabel('Crustal heating fraction')
 ylabel('\eta_0 (Pa-s)')
 title("lid thickness")
+
+nexttile
+contourf(hf,visc,max_differential_stress);
+set(gca,'YScale','log')
+colorbar()
+xlabel('Crustal heating fraction')
+ylabel('\eta_0 (Pa-s)')
+title("max. diff. stress.")
 
 %% Plot the edge cases
 for ivisc=[1 nvisc]
@@ -121,6 +130,8 @@ for ivisc=[1 nvisc]
         % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,tau_m(:,mask) - strength(:,mask),[0 0],'Color','r','LineStyle','--'); %
         % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,abs(results.differential_stress(:,mask))-delta_sigma(:,mask),[0 0],'Color','g','LineStyle','--'); %
         % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+
+        title(sprintf('Mars: eta0 %.2e, heating %.2f',results.state.mub,results.state.crust_heat_fraction))
 
         plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
@@ -239,13 +250,13 @@ for ivisc=[1 nvisc]
         % ax3.FontSize=8;
 
         % set(gca,'XLim',[0 4500]);
-
+        set(gca,'XLim',[0 4500]);
 
         fig = gcf();
         fig.Position(3:4) = [385   650];
         axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
         linkaxes(t.Children(axmask),'x');
-        set(gca,'XLim',[0 4500]);
+        
 
         set(t.Children(axmask),'XTickLabel',[])
         set(gca,'XTickLabel',get(gca,'XTick'))
