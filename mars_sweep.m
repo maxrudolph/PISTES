@@ -27,7 +27,7 @@ end
 
 save(strcat('all_results_visc_crusthf', string(datetime), '.mat'),'-v7.3')
 
-clear all_results;
+clear allresults;
 
 for istress=1:nstress
     parfor ihf=1:nhf
