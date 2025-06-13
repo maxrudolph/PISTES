@@ -705,6 +705,7 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
 
             [strtmp,indtmp] = max(sigma_t-sigma_r);
             results.maximum_differential_stress(isave) = strtmp;
+            results.minimum_differential_stress(isave) = min(sigma_t-sigma_r);
             results.maximum_stress_depth(isave) = Ro-grid_r(indtmp);
             [indtmp] = find( sigma_t-sigma_r >= 0,1,'last'); %shallowest value where sigma_t > sigma_r
             

@@ -46,16 +46,21 @@ save(strcat('all_results_stress_crusthf', string(datetime), '.mat'),'-v7.3')
 % plot the crossover depth at the end of the calculation
 max_stress_depth = cellfun( @(x) x.maximum_stress_depth(x.last_isave-1),allresults);
 max_differential_stress = cellfun( @(x) x.maximum_differential_stress(x.last_isave-1),allresults);
+min_differential_stress = cellfun( @(x) x.minimum_differential_stress(x.last_isave-1),allresults);
 stress_crossover_depth = cellfun( @(x) x.stresss_crossover_depth(x.last_isave-1),allresults);
 mantle_temperature=cellfun( @(x) x.Tm(x.last_isave-1),allresults);
 final_lid_thickness=cellfun( @(x) x.state.Ro-x.state.Ri + x.z(x.last_isave-1),allresults);
 
-figure()
-t=tiledlayout(3,2)%,"TileSpacing","tight","Padding","tight");
+f=figure()
+f.Position(3:4) = [530   602];
+t=tiledlayout(3,2,"TileSpacing","compact","Padding","none");
 nexttile;
 contourf(hf,visc,max_stress_depth/1e3);
 set(gca,'YScale','log')
-colorbar()
+hcb = colorbar();
+hcb.Label.String = 'Depth (km)';
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+
 xlabel('Crustal heating fraction')
 ylabel('\eta_0 (Pa-s)')
 title("Depth of max. \sigma_t-\sigma_r")
@@ -63,34 +68,53 @@ title("Depth of max. \sigma_t-\sigma_r")
 nexttile
 contourf(hf,visc,stress_crossover_depth/1e3);
 set(gca,'YScale','log')
-colorbar()
+hcb=colorbar()
+hcb.Label.String = 'Depth (km)';
 xlabel('Crustal heating fraction')
 ylabel('\eta_0 (Pa-s)')
 title("Depth of \sigma_t-\sigma_r=0")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
 
 nexttile
 contourf(hf,visc,mantle_temperature);
 set(gca,'YScale','log')
-colorbar()
+hcb=colorbar()
+hcb.Label.String = 'T_m (K)';
 xlabel('Crustal heating fraction')
 ylabel('\eta_0 (Pa-s)')
-title("Tm")
+title("Mantle temperature")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
 
 nexttile
 contourf(hf,visc,final_lid_thickness/1e3);
 set(gca,'YScale','log')
-colorbar()
+hcb = colorbar();
+hcb.Label.String = 'Thickness (km)';
 xlabel('Crustal heating fraction')
 ylabel('\eta_0 (Pa-s)')
-title("lid thickness")
+title("Lid thickness")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
 
 nexttile
 contourf(hf,visc,max_differential_stress);
 set(gca,'YScale','log')
-colorbar()
+hcb=colorbar();
+hcb.Label.String = 'Stress (Pa)';
 xlabel('Crustal heating fraction')
 ylabel('\eta_0 (Pa-s)')
-title("max. diff. stress.")
+title("Max. \sigma_t-\sigma_r")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+
+nexttile
+contourf(hf,visc,min_differential_stress);
+set(gca,'YScale','log')
+hcb=colorbar();
+hcb.Label.String = 'Stress (Pa)';
+xlabel('Crustal heating fraction')
+ylabel('\eta_0 (Pa-s)')
+title("Min. \sigma_t-\sigma_r")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+% exportgraphics(gcf,'tradeoff-eta-heating.pdf',"ContentType",'vector');
 
 %% Plot the edge cases
 for ivisc=[1 nvisc]
