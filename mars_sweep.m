@@ -25,7 +25,8 @@ for ivisc=1:nvisc
     end
 end
 
-save(strcat('all_results_visc_crusthf', string(datetime), '.mat'));
+save(strcat('all_results_visc_crusthf', string(datetime), '.mat'),'-v7.3')
+
 clear all_results;
 
 for istress=1:nstress
@@ -38,7 +39,8 @@ for istress=1:nstress
     end
 end
 
-save(strcat('all_results_stress_crusthf', string(datetime), '.mat'));
+save(strcat('all_results_stress_crusthf', string(datetime), '.mat'),'-v7.3')
+
 
 %% Make some plots to explore range from all models
 % plot the crossover depth at the end of the calculation
