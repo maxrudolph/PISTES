@@ -54,7 +54,7 @@ Tref = 1600;            % Reference temperature, Kelvin.
 Q=300;                  % value from Michaut et al. 2025, kJ/mol
 R=8.314e-3;             % in kJ/mol/K
 if viscosity_model == 2
-    mub=3e20;               % Reference viscosity (at reference temperature)
+    mub=parameters.viscosity;               % Reference viscosity (at reference temperature)
     Q=300;                  % value from Michaut et al. 2025, kJ/mol
     mu = @(T,P,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
     dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
