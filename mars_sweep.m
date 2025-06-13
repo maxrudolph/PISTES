@@ -12,6 +12,8 @@ nvisc=10;
 visc = logspace(20,22,nvisc);
 nhf=11;
 hf = linspace(0.3,0.7,nhf);
+nstress = 10;
+nst = linspace(0,3.5e9,nstress);
 
 allresults = cell(nvisc,nhf);
 for ivisc=1:nvisc
@@ -23,7 +25,21 @@ for ivisc=1:nvisc
     end
 end
 
-save(strcat('all_results_', string(datetime), '.mat'));
+save(strcat('all_results_visc_crusthf', string(datetime), '.mat'));
+clear all_results;
+
+for istress=1:nstress
+    parfor ihf=1:nhf
+        p = parameters;
+        p.viscosity = 3e20;
+        p.no_stress_time = nst(istress);
+        p.crust_heat_fraction = hf(ihf);
+        allresults{istress,ihf} = mars_thermal_evolution_and_stress(p);
+    end
+end
+
+save(strcat('all_results_stress_crusthf', string(datetime), '.mat'));
+
 %% Make some plots to explore range from all models
 % plot the crossover depth at the end of the calculation
 max_stress_depth = cellfun( @(x) x.maximum_stress_depth(x.last_isave-1),allresults);

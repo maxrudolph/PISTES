@@ -27,7 +27,7 @@ function results = mars_thermal_evolution_and_stress(parameters)
 % for crust_heat_fraction = [0.3 0.5 0.7]
 
 
-nrs = [256]; % number of points used in the radial direction
+nrs = [512]; % number of points used in the radial direction
 
 % Settings related to numerics
 label='Mars';
@@ -53,8 +53,18 @@ mub = parameters.viscosity;
 Tref = 1600;            % Reference temperature, Kelvin.
 Q=300;                  % value from Michaut et al. 2025, kJ/mol
 R=8.314e-3;             % in kJ/mol/K
-mu = @(T,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
-dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
+if viscosity_model == 2
+    mub=3e20;               % Reference viscosity (at reference temperature)
+    Q=300;                  % value from Michaut et al. 2025, kJ/mol
+    mu = @(T,P,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
+    dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
+elseif viscosity_model==3
+    viscosity.d = 7.08e-3;  %grain size in m. 7.08e-3 gives 3e20 Pa-s at 1 GPa pressure and 0 stress
+    % viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
+    Q=375; % Q used in hirth and kohlstedt model - use it for the mantle too?
+    mu = @(T,P,stress) hirth_kohlstedt(stress,T,viscosity.d,P);
+    dTnu = @(T) R/Q*T^2;
+end
 
 % crust properties
 rhoc=2900;
@@ -164,6 +174,7 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
     results.T = zeros(nsave_depths,nsave);
     results.Tb = zeros(nsave,1);
     results.ur = zeros(nsave_depths,nsave);
+    results.ur_base = NaN*zeros(1,nsave);
     results.failure_time = zeros(1,nsave);
     results.failure_P = zeros(1,nsave);
     results.failure_Pex_crit = zeros(1,nsave);
@@ -177,6 +188,8 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
     results.stresss_crossover_depth = NaN*zeros(1,nsave);
     results.maximum_differential_stress = NaN*zeros(1,nsave);
     results.maximum_stress_depth = NaN*zeros(1,nsave);
+    results.maximum_stress_depth = NaN*zeros(1,nsave);
+
     erupted_volume = 0;
     erupted_volume_pressurechange = 0;
     erupted_volume_volumechange = 0;
@@ -684,6 +697,7 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
             results.e_t(:,isave) = interp1(Ro-grid_r,et_last,save_depths);
             results.e_r(:,isave) = interp1(Ro-grid_r,er_last,save_depths);
             results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
+            results.ur_base(isave) = ur_last(1);
             results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
             results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
             results.Tb(isave) = Tb;

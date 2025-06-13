@@ -26,7 +26,7 @@ addpath ~/sw/matlab/crameri
 % for crust_heat_fraction = [0.3 0.5 0.7]
 
 
-nrs = [256]; % number of points used in the radial direction
+nrs = [512]; % number of points used in the radial direction
 
 for isetup = 5:5
     if isetup == 5 % Mars
@@ -38,15 +38,15 @@ for isetup = 5:5
         t_end = 4500e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
         dtmax = 5e6*seconds_in_year;
         dtmin = 100*seconds_in_year;%*seconds_in_year;
-        no_stress_time = 1.5e9*seconds_in_year; % time before which stresses are not allowed to increase
+        no_stress_time = 0.5e9*seconds_in_year; % time before which stresses are not allowed to increase
 
         % Stuff related to the Mars thermal evolution model
         arh =2.0;   % constant from Michaut equation 12
         C   =0.5;   % Davaille and Jaupart 1993 constant for heat flux
 
         % Rheology
-        viscosity_model = 3;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
-        
+        viscosity_model = 2;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
+
         Tref = 1600;            % Reference temperature, Kelvin.
         R=8.314e-3;             % in kJ/mol/K
         if viscosity_model == 2
@@ -94,7 +94,7 @@ for isetup = 5:5
         Ri = Ro-thickness;  % initial inner radius of lithosphere
         Rc = 1.830e6;       % core radius, m (Samuel et al., 2023)
         h_crust = 60e3;     % crust thickness (assumed constant)
-        crust_heat_fraction = 0.5; % fraction of primitive mantle heat production concentrated within crust
+        crust_heat_fraction = 0.6; % fraction of primitive mantle heat production concentrated within crust
         mars_mass = 6.4169e23;
         silicate_mass = 0.75*mars_mass; % assuming core 25% as in Khan et al. 2022 EPSL
         silicate_density = silicate_mass / (4/3*pi*(Ro^3-Rc^3));% density of bulk silicate mars
@@ -164,6 +164,7 @@ for isetup = 5:5
         results.T = zeros(nsave_depths,nsave);
         results.Tb = zeros(nsave,1);
         results.ur = zeros(nsave_depths,nsave);
+        results.ur_base = NaN*zeros(1,nsave);
         results.failure_time = zeros(1,nsave);
         results.failure_P = zeros(1,nsave);
         results.failure_Pex_crit = zeros(1,nsave);
@@ -176,6 +177,7 @@ for isetup = 5:5
         results.failure_erupted_volume_volumechange = NaN*zeros(1,nsave);
         results.stresss_crossover_depth = NaN*zeros(1,nsave);
         results.maximum_differential_stress = NaN*zeros(1,nsave);
+        results.minimum_differential_stress = NaN*zeros(1,nsave);
         results.maximum_stress_depth = NaN*zeros(1,nsave);
         erupted_volume = 0;
         erupted_volume_pressurechange = 0;
@@ -387,14 +389,14 @@ for isetup = 5:5
                 % rhobar = 1/(ztmp(end)-ztmp(1))*rhobar(end);
 
                 % Pex_crit = (rhobar-rho_lith)*(Ro-(Ri-z))*g;
-                
+
                 % compute hydrostatic pressure (needed for rheology)
                 phydro = zeros(size(T));
                 phydro(end) = 0;
-                for i=(length(phydro)-1):-1:1                    
+                for i=(length(phydro)-1):-1:1
                     phydro(i) = phydro(i+1) + rho*g*(grid_r(i+1)-grid_r(i));
                 end
-                    
+
                 % calculate viscosity at each node
                 visc_converged = false;
                 visc_iter = 100;
@@ -407,7 +409,7 @@ for isetup = 5:5
                         siiD = siiD_post;
                     end
 
-                    
+
                     mu_node = zeros(nr,1);
                     mu_node(:) = mu(T,phydro,siiD);
                     % reduce Maxwell time in region experiencing failure
@@ -507,7 +509,7 @@ for isetup = 5:5
                 %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
 
                 % check for convergence
-                if abs( Pex_post-Pex )/abs(Pex) < 1e-3 || abs(Pex_post-Pex) < 1e2
+                if abs( Pex_post-Pex )/abs(Pex) < 1e-4 || abs(Pex_post-Pex) < 1e1
                     fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
                     converged = true;
                 elseif iter==maxiter
@@ -690,6 +692,7 @@ for isetup = 5:5
                 results.e_t(:,isave) = interp1(Ro-grid_r,et_last,save_depths);
                 results.e_r(:,isave) = interp1(Ro-grid_r,er_last,save_depths);
                 results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
+                results.ur_base(isave) = ur_last(1);
                 results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
                 results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
                 results.Tb(isave) = Tb;
@@ -698,6 +701,8 @@ for isetup = 5:5
                 [strtmp,indtmp] = max(sigma_t-sigma_r);
                 results.maximum_differential_stress(isave) = strtmp;
                 results.maximum_stress_depth(isave) = Ro-grid_r(indtmp);
+                results.minimum_differential_stress(isave) = min(sigma_t-sigma_r);
+
                 [indtmp] = find( sigma_t-sigma_r >= 0,1,'last'); %shallowest value where sigma_t > sigma_r
                 if indtmp < nr
                     ytmp = sigma_t(indtmp:indtmp+1)-sigma_r(indtmp:indtmp+1);
@@ -706,9 +711,9 @@ for isetup = 5:5
                 else
                     rtmp = grid_r(indtmp);
                 end
-
-                results.stresss_crossover_depth(isave) = Ro-rtmp;
-
+                if ~isempty(rtmp)
+                    results.stresss_crossover_depth(isave) = Ro-rtmp;
+                end
                 % results.Pex_crit(isave) = Pex_crit;
                 % results.XNH3(isave) = X;
                 last_store = time; isave = isave+1;
@@ -749,55 +754,77 @@ for isetup = 5:5
         strength = cohesion*cosd(phi) - sigma_m*sind(phi);
         % Plot strength envelope from Mueller and Phillips 1995
         delta_sigma = -0.786*plith;
+        %% 
+        mask1 = mask & results.time>(no_stress_time+save_interval*10);
 
-
-        xscale = 'linear';
-        ax=[];
         figure();
-        t=tiledlayout(7,1,'TileSpacing','compact','Padding','none');
-        % t.Units = 'centimeters';
-        % t.OuterPosition = [1 1 11 14];
-        nexttile
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
+        tga = 4.5-results.time/seconds_in_year/1e9;
+        contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
-        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
-        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,tau_m(:,mask) - strength(:,mask),[0 0],'Color','r','LineStyle','--'); %
-        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,abs(results.differential_stress(:,mask))-delta_sigma(:,mask),[0 0],'Color','g','LineStyle','--'); %
-        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
-
-        plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        contour(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
+        plot(tga(mask1),results.maximum_stress_depth(mask1)/1e3,'r');
+        % plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
         set(gca,'YDir','reverse');
+        set(gca,'XDir','reverse');
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
         stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
         caxis([-1 1]*stmax)
         hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
-        text(0.025,0.85,char('A'),'FontSize',12,'Units','normalized');
-        % xlabel('Time (years)');
-        title(label);
+        set(gca,'FontSize',14)
+        xlabel('Time (Ga)');
+        % title(label);
         ylabel('Depth (km)');
         set(gca,'XScale',xscale);
-        set(gca,'YLim',[0 50]);
+        set(gca,'YLim',[0 80]);
+        f=gcf();
+        f.Position(3:4) = [714   350];
 
+
+        %% multi panel plot of all model quantities
+        
+        xscale = 'linear';
+        ax=[];
+        figure();
+        t=tiledlayout(7,1,'TileSpacing','compact','Padding','none');
+        
+        % nexttile
+        % contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
+        % hold on
+        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
+        % plot(results.time(mask1)/seconds_in_year/1e6,results.maximum_stress_depth(mask1)/1e3,'r');
+        % plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        % %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
+        % set(gca,'YDir','reverse');
+        % hcb = colorbar();
+        % set(gca,'Colormap',crameri('-roma'))
+        % stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
+        % caxis([-1 1]*stmax)
+        % hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
+        % text(0.025,0.85,char('A'),'FontSize',12,'Units','normalized');
+        % ylabel('Depth (km)');
+        % set(gca,'XScale',xscale);
+        % set(gca,'YLim',[0 80]);
+        %
+        % tile 2...
+        %
         nexttile
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
-
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
+        contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
+        contourf(tga(mask),save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
-        plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         hold on
-        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+        contour(tga(mask),save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+        
 
-
-        %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
         set(gca,'YDir','reverse');
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
         stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
         caxis([-1 1]*stmax)
         hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
-        text(0.025,0.85,char('A'+1),'FontSize',12,'Units','normalized');
+        text(0.025,0.85,char('A'+0),'FontSize',12,'Units','normalized');
         % xlabel('Time (years)');
         % title(label);
         ylabel('Depth (km)');
@@ -808,90 +835,70 @@ for isetup = 5:5
         % end
         % TEMPERATURE
         nexttile
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),64,'Color','none'); %shading flat;
+        contourf(tga(mask),save_depths/1000,results.T(:,mask),64,'Color','none'); %shading flat;
         hold on
-        plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
-        %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
+        plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         set(gca,'YDir','reverse');
         % ax1 = gca();
         % ax1.FontSize=8;
         set(gca,'Colormap',crameri('-lajolla'))
         hcb = colorbar();
         hcb.Label.String = 'Temperature (K)';
-        text(0.025,0.85,char('C'),'FontSize',12,'Units','normalized');
+        text(0.025,0.85,char('A'+1),'FontSize',12,'Units','normalized');
         % xlabel('Time (years)');
         ylabel('Depth (km)');
         set(gca,'XScale',xscale);
         hold on;
-
+        %
+        % u_r
+        %
         nexttile
-        plot(results.time(mask)/seconds_in_year/1e6,results.ur(1,mask),'k')
-        ylabel('u_r (m)')
-        text(0.025,0.85,char('D'),'FontSize',12,'Units','normalized');
-
+        plot(tga(mask),results.ur_base(mask)/1e3,'k')
+        ylabel('u_r (km)')
+        text(0.025,0.85,char('A'+2),'FontSize',12,'Units','normalized');
+        %
+        % e_t
+        %        
         nexttile
-        plot(results.time(mask)/seconds_in_year/1e6,results.Pex(mask)/1e6,'k');
-        ylabel('P_{ex} (MPa)');
+        plot(tga(mask1),results.e_t(1,mask1)*1e3,'k');
+        ylabel('\epsilon_t (10^{-3})')
+        text(0.025,0.85,char('A'+3),'FontSize',12,'Units','normalized');
+        %
+        % Pex
+        %
+        nexttile      
+        plot(tga(mask1),-results.Pex(mask1)/1e6,'k');
+        ylabel('\sigma_{rb} (MPa)');
         set(gca,'XScale',xscale);
-        % ax2 = gca();
-        % ax2.Position(3) = ax1.Position(3);
-        % ax2.XLim = ax1.XLim;
-        % ax2.FontSize=8;
         hold on
-        % plot(results.failure_time(1:ifail-1)*1e6,results.failure_P(1:ifail-1)/1e6,'r.');
-        % end_color = [0 0.9 0];
-        % plot(results.failure_time(1:ifail-1)*1e6,(results.failure_P(1:ifail-1)+results.failure_dP(1:ifail-1))/1e6,'LineStyle','none','Color',end_color,'Marker','o','MarkerFaceColor',end_color,'MarkerSize',2);
-        text(0.025,0.85,char('E'),'FontSize',12,'Units','normalized');
-        % plot(results.time(mask)/seconds_in_year,results.Pex_crit(mask)/1e6,'k-');
-
-        % xlabel('Time (years)');
+        text(0.025,0.85,char('A'+4),'FontSize',12,'Units','normalized');
+        %
+        % Tm
+        %
         nexttile
-        % for i=1:ifail-1
-        %     if isnan(results.failure_erupted_volume(i))
-        %         % plot nothing
-        %     else
-        %         if results.failure_P(i) - results.failure_Pex_crit(i) > 0
-        %             plot(results.failure_time(i)*1e6*[1 1],[0 1],'b');
-        %         else
-        %             plot(results.failure_time(i)*1e6*[1 1],[0 1],'b--');
-        %         end
-        %     end
-        % end
-        plot(results.time(mask)/seconds_in_year/1e6,results.Tm(mask),'k-');
-        text(0.025,0.85,char('F'),'FontSize',12,'Units','normalized');
-
+        plot(tga(mask),results.Tm(mask),'k-');
+        text(0.025,0.85,char('A'+5),'FontSize',12,'Units','normalized');
         ylabel('T_m (K)');
+     
+
         nexttile
-        mask1 = mask & results.time>no_stress_time;
-        plot(results.time(mask1)/seconds_in_year/1e6,results.stresss_crossover_depth(mask1)/1e3);
+        plot(tga(mask1),results.maximum_differential_stress(mask1)/1e6,'r','LineWidth',1);
         hold on
-        plot(results.time(mask1)/seconds_in_year/1e6,results.maximum_stress_depth(mask1)/1e3);
-        legend('zero stress','maximum tension')
-        ylabel('Depth (km)')
-        text(0.025,0.85,char('G'),'FontSize',12,'Units','normalized');
-
-
-
-
-        xlabel('Time (years)');
+        plot(tga(mask1),-results.minimum_differential_stress(mask1)/1e6,'b','LineWidth',1);
+        ylabel('|\sigma_t-\sigma_r| (MPa)')
+        text(0.025,0.85,char('A'+6),'FontSize',12,'Units','normalized');
+        xlabel('Time (Ga)');
         set(gca,'XScale',xscale);
-        % ax3=gca();
-        % ax3.XLim = ax1.XLim;
-        % ax3.Position(3) = ax1.Position(3);
-        % ax3.Box = 'on';
-        % ax3.FontSize=8;
-        
-        % set(gca,'XLim',[0 4500]);
-
 
         fig = gcf();
         fig.Position(3:4) = [385   650];
         axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
         linkaxes(t.Children(axmask),'x');
-        set(gca,'XLim',[0 4500]);
-
+        set(gca,'XLim',[0 4.5]);
+        
         set(t.Children(axmask),'XTickLabel',[])
         set(gca,'XTickLabel',get(gca,'XTick'))
+        set(t.Children(axmask),'XDir','reverse')
 
         fig.Color = 'w';
         filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
