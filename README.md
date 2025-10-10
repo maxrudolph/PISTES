@@ -11,7 +11,7 @@ If you use PISTES in your own work, please cite Rudolph et al. (2022) and Rhoden
 
 ### Requirements:
 - MATLAB 2020a or later due to the use of tiled layouts.
-- Fabio Crameri's scientific colormaps
+- Fabio Crameri's scientific colormaps (https://www.fabiocrameri.ch/colourmaps/)
 - Parallel computing toolbox
 
 ### Description of files:
