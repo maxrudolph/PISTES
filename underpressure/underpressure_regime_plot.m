@@ -1,8 +1,6 @@
 clear;
 close all;
 
-% moon = 'enceladus';
-
 rhoi = 910;
 rhow = 1000.0;
 rhoc = 3000;% density of rock (core)
@@ -12,7 +10,7 @@ beta = 4e-10; % ocean compressibility Pa^-1
 E = 5e9; % Young's modulus, Pa
 nu = 0.33;
 
-initial_frozen_fraction = 0.5; % the initial fraction of the H2O that is frozen - 1.0 in main text, 0.5 in supplement
+initial_frozen_fraction = 1.0; % the initial fraction of the H2O that is frozen - 1.0 in main text, 0.5 in supplement
 for uniaxial_compressive_strength = [40e6]% 70e6 20e6]% paper uses values of 20, 40, 70 MPa.
     cohesion_phi0 = uniaxial_compressive_strength/2;
     muf = 0.6;%0.6 in paper
@@ -173,25 +171,8 @@ for uniaxial_compressive_strength = [40e6]% 70e6 20e6]% paper uses values of 20,
         (isnan(fractional_thickening_yield_coulomb) & ~isnan(fractional_thickening_boil));
     boil_region_constant = boil_first_constant | ...
         (isnan(fractional_thickening_yield_constant) & ~isnan(fractional_thickening_boil));
-    % yield_first_coulomb = fractional_thickening_yield_coulomb < fractional_thickening_boil;
 
-    % figure
-    % pcolor(RR,ff,gg);
-    % shading flat
-    % colorbar()
-    %
-    % figure
-    % % pcolor(RR,ff,h2o_thickness);
-    % hold on
-    % contour(RR,ff,h2o_thickness,25000:25000:1000000);
-    % shading flat
-    % colorbar()
-    % title('h2o thickness')
-
-    f=figure(101); clf();
-    % pos = get(gcf,'Position');
-    % f.Position(3) = pos(3)*2;
-    % subplot(1,2,1);
+    f=figure(101); clf();    
     pcolor(RR/1e3,ff,fractional_thickening_coulomb);
     shading flat;
     hcb=colorbar();
@@ -213,34 +194,19 @@ for uniaxial_compressive_strength = [40e6]% 70e6 20e6]% paper uses values of 20,
     colormap(sky)
     exportgraphics(gcf,['fractional_thinning' label '.pdf'],'ContentType','vector');
 
-    % figure
-    % pcolor(RR/1e3,ff,yield_coulomb);
-    % shading flat;
-    % hold on
-    % % contour(RR/1e3,ff,yield,[8 40]*10^6,'k');
-    % hcb=colorbar();
-    % % set(gca,'ColorScale','log');
-    % hcb.Label.String = 'yield criterion?';
-    % set(gca,'FontSize',14)
-    % set(gca,'Layer','top')
     %%
-    figure();
-    % subplot(1,2,2);
+    figure();    
     max_stress = sdmax_yield_coulomb;
     max_stress(boil_region_coulomb) = sdmax_boil(boil_region_coulomb);
 
     hh=pcolor(RR/1e3,ff,max_stress/1e6);
     shading flat;
     hold on
-    hcb=colorbar();
-    % set(gca,'ColorScale','log');
+    hcb=colorbar();  
     colormap(sky)
     hcb.Label.String = 'Maximum shear stress (MPa)';
     hcb.Label.FontSize = 16;
-    % contour(RR/1e3,ff,sdmax,[8 40]*10^6,'k');
-    contour(RR/1e3,ff,boil_region_coulomb,[0.5 0.5],'k','LineWidth',1);
-    % contour(RR/1e3,ff,yield_coulomb,[0.5 0.5],'k--','LineWidth',1);
-    % hcb.Label.String = 'Fractional Thinning to Boil';
+    contour(RR/1e3,ff,boil_region_coulomb,[0.5 0.5],'k','LineWidth',1);    
     xlabel('Planetary body radius (km)');
     ylabel('H_2O mass fraction (-)')
     hold on
@@ -263,10 +229,10 @@ for uniaxial_compressive_strength = [40e6]% 70e6 20e6]% paper uses values of 20,
     shading flat;
     hold on
     hcb=colorbar();
-    % set(gca,'ColorScale','log');
+    
     colormap("sky")
     hcb.Label.String = 'Maximum shear stress (MPa)';
-    % contour(RR/1e3,ff,sdmax,[8 40]*10^6,'k');
+    
     contour(RR/1e3,ff,boil_region_constant,[0.5 0.5],'k--','LineWidth',1);
     xlabel('Planetary Body Radius (km)');
     ylabel('H_2O Mass Fraction (-)')
@@ -281,150 +247,3 @@ for uniaxial_compressive_strength = [40e6]% 70e6 20e6]% paper uses values of 20,
     exportgraphics(gcf,['differential_stress_constant' label '.pdf'],'ContentType','vector');
 
 end
-%%
-%
-% figure,
-%
-% % make the plot
-% nthick = 1000; % number of thicknesses
-%
-% Pex = @(z_values,ri_values,xi_values,planet) (z_values .* (1-rhoi/rhow)) ./ (beta*(ri_values.^3-planet.rc^3)./(3*ri_values.^2) + ...
-%     xi_values/E.*(1 + 2*nu*(1+0.5*(planet.R./xi_values).^3)./( (planet.R./xi_values).^3-1) ) );
-% sigma_t = @(z_values,ri_values,xi_values,planet) 3/2*Pex(z_values,ri_values,xi_values,planet)./((planet.R./xi_values).^3-1);
-
-% reproduce Manga and Wang 2007 results - 1/3 elastic fraction
-% p = enceladus;
-% z_values = logspace(1,4,nthick); % amount of thickening
-% ri_values = p.ri-z_values; % ri should evolve with the changing ice shell thickness.
-% elastic_thickness = 1/3*(p.R-(ri_values));
-% xi_values = p.R-elastic_thickness;
-% Pex_13 = Pex(z_values,ri_values,xi_values,p);
-% sigmat_13 = sigma_t(z_values,ri_values,xi_values,p);
-% Pb_13 = rhoi*p.g*(p.R-ri_values) + Pex_13;
-%
-% ri_values = p.ri-z_values; % ri should evolve with the changing ice shell thickness.
-% elastic_thickness = 1e3; % fixed at 1 km
-% xi_values = p.R-elastic_thickness;
-% Pex_1km = Pex(z_values,ri_values,xi_values,p);
-% sigmat_1km = sigma_t(z_values,ri_values,xi_values,p);
-% Pb_1km = rhoi*p.g*(p.R-ri_values) + Pex_1km;
-%
-% figure;
-% plot(z_values,Pex_13,'k--','DisplayName','Pex 1/3');
-% hold on
-% plot(z_values,sigmat_13,'k','DisplayName','\sigma_t 1/3');
-% plot(z_values,Pex_1km,'r--','DisplayName','Pex 1km');
-% plot(z_values,sigmat_1km,'r','DisplayName','\sigma_t 1km');
-%
-% legend('Location','northwest');
-% set(gca,'XScale','log');
-% set(gca,'YScale','log');
-% title(p.name);
-%
-% figure;
-% plot(z_values,Pb_13,'DisplayName','Pb 1/3')
-% hold on
-% plot(z_values,Pb_1km,'DisplayName','Pb 1 km')
-% set(gca,'XScale','log');
-% set(gca,'YScale','log');
-% legend()
-%
-% %% Manga and Wang - Europa
-% p = europa;
-% z_values = logspace(1,4,nthick); % amount of thickening
-% ri_values = p.ri-z_values; % ri should evolve with the changing ice shell thickness.
-% elastic_thickness = 1/3*(p.R-(ri_values));
-% xi_values = p.R-elastic_thickness;
-% Pex_13 = Pex(z_values,ri_values,xi_values,p);
-% sigmat_13 = sigma_t(z_values,ri_values,xi_values,p);
-% Pb_13 = rhoi*p.g*(p.R-ri_values) + Pex_13;
-%
-% ri_values = p.ri-z_values; % ri should evolve with the changing ice shell thickness.
-% elastic_thickness = 1e3; % fixed at 1 km
-% xi_values = p.R-elastic_thickness;
-% Pex_1km = Pex(z_values,ri_values,xi_values,p);
-% sigmat_1km = sigma_t(z_values,ri_values,xi_values,p);
-% Pb_1km = rhoi*p.g*(p.R-ri_values) + Pex_1km;
-%
-% figure;
-% plot(z_values,Pex_13,'k--','DisplayName','Pex 1/3');
-% hold on
-% plot(z_values,sigmat_13,'k','DisplayName','\sigma_t 1/3');
-% plot(z_values,Pex_1km,'r--','DisplayName','Pex 1km');
-% plot(z_values,sigmat_1km,'r','DisplayName','\sigma_t 1km');
-%
-% legend('Location','northwest');
-% set(gca,'XScale','log');
-% set(gca,'YScale','log');
-% title(p.name);
-%
-% figure;
-% plot(z_values,Pb_13,'DisplayName','Pb 1/3')
-% hold on
-% plot(z_values,Pb_1km,'DisplayName','Pb 1 km')
-% set(gca,'XScale','log');
-% set(gca,'YScale','log');
-% legend(['total pressure ' p.name])
-%
-%
-% %% thinning ice shell...
-% z_values = -linspace(1,5e4,nthick); % amount of thickening
-%
-% figure(1001); clf;
-% figure(1002); clf;
-% for p = [enceladus europa mimas charon]
-%     p.ri = p.rc;
-%     z_values = linspace(0,-((p.R-1e3-p.ri)),nthick); % amount of thickening - limited by ice shell thickness
-%
-%     ri_values = p.ri-z_values; % ri should evolve with the changing ice shell thickness.
-%     elastic_thickness = 1/3*(p.R-(ri_values));
-%     xi_values = p.R-elastic_thickness;
-%     Pex_13 = Pex(z_values,ri_values,xi_values,p);
-%     sigmat_13 = sigma_t(z_values,ri_values,xi_values,p);
-%     Pb_13 = rhoi*p.g*(p.R-ri_values) + Pex_13;
-%
-%     % ri_values = p.ri-z_values; % ri should evolve with the changing ice shell thickness.
-%     % elastic_thickness = 1e3; % fixed at 1 km
-%     % xi_values = p.R-elastic_thickness;
-%     % Pex_1km = Pex(z_values,ri_values,xi_values,p);
-%     % sigmat_1km = sigma_t(z_values,ri_values,xi_values,p);
-%     % Pb_1km = rhoi*p.g*(p.R-ri_values) + Pex_1km;
-%
-%     figure(1001);
-%     plot(z_values,Pex_13,'k','LineStyle',p.style,'DisplayName',[p.name ' 1/3']);
-%     hold on
-%     plot(z_values,sigmat_13,'k','DisplayName','\sigma_t 1/3');
-%     % plot(z_values,Pex_1km,'r--','DisplayName','Pex 1km');
-%     % plot(z_values,sigmat_1km,'r','DisplayName','\sigma_t 1km');
-%
-%     figure(1002);
-%     Pb0 = p.g*rhoi*(p.R-p.rc);
-%     R0 = (p.R-p.rc);
-%     mask = Pb_13 > 600;
-%     plot(-z_values(mask)/R0,(Pb_13(mask)-(600))/(Pb0),'DisplayName',[p.name ' 1/3']);
-%     hold on
-%     % plot(z_values,Pb_1km,'DisplayName','Pb 1 km');
-% end
-% figure(1001);
-% legend('Location','northwest');
-% % set(gca,'XScale','log');
-% % set(gca,'YScale','log');
-% title(p.name);
-%
-%
-%
-% % set(gca,'XScale','log');
-% % set(gca,'YScale','log');/
-%
-% figure(1002);
-%     plot(get(gca,'XLim'),[0 0],'k')
-%     ylabel('(P-P_{tp})/P_c (-)')
-% xlabel('Fracional thinning (-)')
-% legend()
-% title('Basal Total Pressure')
-%
-% % plot the excess pressure
-% % plot elastic stresses in the ice shell
-%
-% % plot the pressure profile
-%
