@@ -9,12 +9,13 @@
 %
 % and
 %
-%
+% Rudolph, M.L., Manga, M., Rhoden, A., and Walker, M. Boiling oceans and
+% compressional tectonics on emerging ocean worlds. Nature Astronomy.
 
 clear;
 close all;
-addpath core; % this is where the helper functions live.
-addpath mimas;
+addpath ../core; % this is where the helper functions live.
+addpath ../mimas;
 % Numerical parameters
 
 nrs = [512]; % number of points used in the radial direction
@@ -24,21 +25,21 @@ failure_thickness = 0;
 % list of initial ammonia content and ice shell thicknesses:
 nammonia = 1;
 nthick = 1;
-initial_ammonia = [ 0.0 ];
-% thicknesses = [ 70e3 ];
+initial_ammonia = [ 0.0 ];% no ammonia
 reset_stresses = false;
 tensile_strength = 3e6; % tensile strength, Pa
 
 Qnew = 5e-2; % basal heat flux
 % adjustment timescale from original heat flux to new heat flux
-tadjust = -1%1e8*3.15e7; % -1 for FAST thinning
-%thicknesses = [3e3 30e3 ];
+tadjust = -1; % -1 for FAST thinning, shown in main text
+% tadjust = 1e8*3.15e7; % 100 Myr - SLOW thinning, shown in Supplementary Info
+Ts = 80; % 60K shown in Figure S7. 80K used in Main text
 
 for iAmmonia = 1:nammonia
     for ithick = 1:nthick
-        clearvars -except tensile_strength reset_stresses ithick iAmmonia nammonia failure_thickness failure_times nrs nthick thicknesses initial_ammonia tadjust Qnew
+        clearvars -except tensile_strength reset_stresses ithick iAmmonia nammonia failure_thickness failure_times nrs nthick thicknesses initial_ammonia tadjust Qnew Ts
 
-        for isetup = [2 4]
+        for isetup = [2 4] % loop over Enceladus and Mimas
             viscosity_model = 0; % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001)
             viscosity.d = 1e-3; % grain size in m used to calculate the viscosity (for G-K)
             viscosity.P = 1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
@@ -48,7 +49,6 @@ for iAmmonia = 1:nammonia
                 Rc = 1.94e5;         % core radius (m)
                 g = 0.113;        % used to calculate failure, m/s/s
                 max_depth = 6.5e4;% maximum depth for saving/plotting output
-                Ts=60;
                 a_over_GMm = 0.0;%1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
 
                 relaxation_parameter=1e-3; % used in nonlinear loop.
@@ -64,7 +64,6 @@ for iAmmonia = 1:nammonia
                 e0 = 2.5*0.0196;           % starting eccentricity
                 max_depth = Ro-Rc;
                 g = 0.064;      % used to calculate failure, m/s/s
-                Ts=60; % Surface temperature (K)
                 core_type = 2; % 1 for rigid core - set Ts to 60K; 2 for fluffy core - set Ts to 80K
                 % constants
                 a_over_GMm = 1.307e-28;% this is mimas semimajor axis divided by G*(saturn mass)*(mimas mass)
@@ -696,7 +695,6 @@ for iAmmonia = 1:nammonia
                 hold on
                 contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.T(:,mask),8,'Color','k','LineWidth',0.25);
                 plot(results.time(mask)/seconds_in_year/1e3,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
-                %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
                 set(gca,'YDir','reverse');
                 set(gca,'YLim',[0 Ro-Rc]/1e3);
                 set(gca,'XTickLabels',[]);
@@ -705,11 +703,10 @@ for iAmmonia = 1:nammonia
                 hcb = colorbar();
                 hcb.Label.String = 'Temperature (K)';
                 ax1.CLim = [Ts 273];
-                % set(ax1,'Colormap',colormap_matplotlib('plasma'));
                 set(ax1,'Colormap',sky)
-                % text(0.025,0.85,char(start_letter+0),'FontSize',12,'Units','normalized');
+                
                 text(-0.125,1.0,char(start_letter+0),'FontSize',12,'Units','normalized','FontWeight','bold');
-                % xlabel('Time (kyr)');
+                
                 title(label);
                 ylabel('Depth (km)');
                 set(gca,'XScale',xscale);
@@ -723,12 +720,10 @@ for iAmmonia = 1:nammonia
                 extra_label = ['phydro'];
                 contourf(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6-phydro(:,mask)/1e6,64,'Color','none'); %shading flat;               
                 hold on
-                % contour(results.time(mask)/seconds_in_year/1e3,save_depths/1000,results.sigma_t(:,mask)/1e6-phydro(:,mask)/1e6,[1 1],'Color','r'); %shading flat;               
 
                 plot(results.time(mask)/seconds_in_year/1e3,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
-                %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
                 set(gca,'YDir','reverse');
-                % set(gca,'YLim',[0 80]);
+                
                 set(gca,'YLim',[0 Ro-Rc]/1e3);
                 set(gca,'XTickLabels',[]);
                 ax1 = gca();
@@ -736,9 +731,9 @@ for iAmmonia = 1:nammonia
                 hcb = colorbar();
                 hcb.Label.String = 'Tensile Stress (MPa)';
                 ax1.CLim = max(abs(ax1.CLim))*[-1 1];
-                % set(ax1,'Colormap',crameri('-roma'));
+                
                 set(ax1,'Colormap',crameri('vik'));
-                % text(0.025,0.85,char(start_letter+1),'FontSize',12,'Units','normalized');%panellabel
+                
                 text(-0.125,1.0,char(start_letter+1),'FontSize',12,'Units','normalized','FontWeight','bold');
 
                 % xlabel('Time (kyr)');
@@ -772,47 +767,7 @@ for iAmmonia = 1:nammonia
                 ax2.XLim = ax1.XLim;
                 ax2.FontSize=8;
 
-                xlabel('Time (kyr)');
-                % nexttile
-                % hold on;
-                % for i=1:ifail-1
-                %     if isnan(results.failure_erupted_volume(i))
-                %         % plot nothing
-                %     else
-                %         if results.failure_P(i) - results.failure_Pex_crit(i) > 0
-                %             plot(results.failure_time(i)*1e6*[1 1]/1e3,[0 1],'b');
-                %         else
-                %             plot(results.failure_time(i)*1e6*[1 1]/1e3,[0 1],'b--');
-                %         end
-                %     end
-                % end
-                % ylabel('Eruption?');
-                % xlabel('Time (kyr)');
-                % set(gca,'XScale',xscale);
-                % ax3=gca();
-                % ax3.XLim = ax1.XLim;
-                % ax3.Position(3) = ax1.Position(3);
-                % ax3.Box = 'on';
-                % ax3.FontSize=8;
-                % text(0.025,0.85,char('C'),'FontSize',12,'Units','normalized');
-                %
-                % nexttile;
-                % plot(results.time(mask)/seconds_in_year/1e3,results.XNH3(mask),'k');
-                % set(gca,'XScale',xscale);
-                % ylabel('X_{NH_3}')
-                % xlabel('Time (kyr)');
-                % ax4=gca();
-                % ax4.FontSize=8;
-                %
-                % set(gca,'XLim',ax1.XLim);
-                % nexttile;
-                % plot(results.time(mask)/seconds_in_year/1e3,results.eccentricity(mask),'k');
-                % set(gca,'XScale',xscale);
-                % ylabel('e (-)')
-                % xlabel('Time (kyr)');
-                % set(gca,'XLim',ax1.XLim);
-                % ax5=gca()
-                % ax5.FontSize=8;
+                xlabel('Time (kyr)');                
 
                 fig = gcf();
 
@@ -830,25 +785,6 @@ for iAmmonia = 1:nammonia
                 text(0.1,0.1,sprintf('rmax,tmax=%.2e , %.2e',max(sigma_r_tot),max(sigma_t_tot)),'Units','normalized');
                 title(label)
                 legend('r','t');
-
-%%
-
-                % figure();
-
-                % plot(results.eccentricity(1:isave-1),results.thickness(1:isave-1)/1e3);
-                % set(gca,'XLim',[.001 .05 ],'YLim',[0 70]);
-                % set(gca,'XDir','reverse');
-                % xlabel('Eccentricity (-)');
-                % ylabel('Thickness (km)');
-                % filename = sprintf('eccentricity-thickness-%s_thickening_nh3-%f_h0-%f.eps',label,initial_ammonia(iAmmonia),...
-                %     (Ro-Ri)/1e3);
-                % exportgraphics(gcf,filename,'ContentType','vector');
-
-                %% find shell thickness associated with present eccentricity
-                % present_eccentricity = .0196;
-                % [~,ind] = min( abs( results.eccentricity-present_eccentricity ));
-                % results.thickness(ind)
-                % disp(sprintf("Eccentricity %f, thickness %f",results.eccentricity(ind),results.thickness(ind)));
             end
         end
     end
