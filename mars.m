@@ -782,6 +782,65 @@ for isetup = 5:5
         f.Position(3:4) = [714   350];
 
 
+        %% Plots of sigma_r and sigma_t separately as pseudocolor
+
+        figure();
+        tga = 4.5-results.time/seconds_in_year/1e9;
+        subplot(2,1,1);
+        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
+
+        contourf(tga(mask),save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
+        hold on
+        set(gca,'YDir','reverse');
+        set(gca,'XDir','reverse');
+        hcb = colorbar();
+        set(gca,'Colormap',crameri('-roma'))
+        hcb.Label.String = '\sigma_t (MPa)';
+        set(gca,'FontSize',14)
+        ylabel('Depth (km)');
+
+        caxis([-1 1]*stmax)
+
+
+        subplot(2,1,2);
+        contourf(tga(mask),save_depths/1000,results.sigma_r(:,mask)/1e6,64,'Color','none'); %shading flat;
+        srmax = max(max(abs(results.sigma_r(:,mask)/1e6)));
+
+        hold on
+        
+        set(gca,'YDir','reverse');
+        set(gca,'XDir','reverse');
+        hcb = colorbar();
+        set(gca,'Colormap',crameri('-roma'))
+        
+        caxis([-1 1]*srmax)
+        hcb.Label.String = '\sigma_r (MPa)';
+        set(gca,'FontSize',14)
+        xlabel('Time (Ga)');
+        % title(label);
+        ylabel('Depth (km)');
+        set(gca,'XScale',xscale);
+        % set(gca,'YLim',[0 80]);
+        f=gcf();
+        filename = sprintf('mars-stress-components-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+        exportgraphics(gcf,filename,'ContentType','vector');
+        savefig(gcf,[filename(1:end-4) '.fig']);
+
+%% plot present-day sigma-r and sigma-t profiles
+figure()
+ind = find(mask,1,'last');
+plot(results.sigma_r(:,ind)/1e6,save_depths/1000,'DisplayName','\sigma_r');
+hold on
+plot(results.sigma_t(:,ind)/1e6,save_depths/1000,'DisplayName','\sigma_t');
+legend();
+set(gca,'Ydir','reverse')
+ylabel('Depth (km)')
+xlabel('Stress (MPa)')
+filename = sprintf('mars-present-stress-vs-depth-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+exportgraphics(gcf,filename,'ContentType','vector');
+savefig(gcf,[filename(1:end-4) '.fig']);
+
+
         %% multi panel plot of all model quantities
         
         xscale = 'linear';

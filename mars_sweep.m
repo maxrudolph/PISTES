@@ -3,10 +3,11 @@ clear;
 close all;
 % run the thermal evolution model
 seconds_in_year = 3.1558e7;
-parameters.no_stress_time = 3.5e9;
+parameters.no_stress_time = 0.5e9;
 % parameters.crust_heat_fraction=0.5;
 % parameters.viscosity = 3e20;
 parameters.do_plots = false;
+
 
 nvisc=10;
 visc = logspace(20,22,nvisc);
@@ -43,6 +44,11 @@ save(strcat('all_results_stress_crusthf', string(datetime), '.mat'),'-v7.3')
 
 
 %% Make some plots to explore range from all models
+
+% Values from reference case shown in Figure 1 of paper:
+reference_crust_heat_fraction=0.6;
+reference_viscosity = 3e20;
+
 % plot the crossover depth at the end of the calculation
 max_stress_depth = cellfun( @(x) x.maximum_stress_depth(x.last_isave-1),allresults);
 max_differential_stress = cellfun( @(x) x.maximum_differential_stress(x.last_isave-1),allresults);
@@ -59,6 +65,8 @@ contourf(hf,visc,mantle_temperature);
 set(gca,'YScale','log')
 hcb=colorbar()
 hcb.Label.String = 'T_m (K)';
+hold on;
+plot(reference_crust_heat_fraction,reference_viscosity,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 xlabel('Crustal heating fraction')
 ylabel('\eta_0 (Pa-s)')
 title("Mantle temperature")
@@ -67,6 +75,8 @@ text(0.05,0.9,'A','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,visc,final_lid_thickness/1e3);
+hold on;
+plot(reference_crust_heat_fraction,reference_viscosity,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 set(gca,'YScale','log')
 hcb = colorbar();
 hcb.Label.String = 'Thickness (km)';
@@ -79,6 +89,8 @@ text(0.05,0.9,'B','Units','normalized','FontSize',16)
 
 nexttile;
 contourf(hf,visc,max_stress_depth/1e3);
+hold on;
+plot(reference_crust_heat_fraction,reference_viscosity,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 set(gca,'YScale','log')
 hcb = colorbar();
 hcb.Label.String = 'Depth (km)';
@@ -91,6 +103,8 @@ text(0.05,0.9,'C','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,visc,stress_crossover_depth/1e3);
+hold on;
+plot(reference_crust_heat_fraction,reference_viscosity,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 set(gca,'YScale','log')
 hcb=colorbar()
 hcb.Label.String = 'Depth (km)';
@@ -103,6 +117,8 @@ text(0.05,0.9,'D','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,visc,max_differential_stress/1e6);
+hold on;
+plot(reference_crust_heat_fraction,reference_viscosity,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 set(gca,'YScale','log')
 hcb=colorbar();
 hcb.Label.String = 'Stress (MPa)';
@@ -114,6 +130,8 @@ text(0.05,0.9,'E','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,visc,min_differential_stress/1e6);
+hold on;
+plot(reference_crust_heat_fraction,reference_viscosity,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 set(gca,'YScale','log')
 hcb=colorbar();
 hcb.Label.String = 'Stress (MPa)';
