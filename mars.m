@@ -11,6 +11,7 @@ clear;
 % close all;
 addpath core; % this is where the helper functions live.
 addpath mars;
+addpath marsquakes;
 addpath ~/sw/matlab/crameri
 
 % parameters to vary across models
@@ -159,6 +160,8 @@ for isetup = 5:5
         results.e_r = NaN*zeros(nsave_depths,nsave);
         results.Pex = zeros(nsave,1);
         results.Tm = zeros(nsave,1); results.Tm(1) = Tm0;
+        results.Tp = zeros(nsave,1);
+        results.z_lith = zeros(nsave,1); results.z_lith(1) = Ro-Ri;
         results.Pex_crit = zeros(nsave,1);
         results.dTdr = zeros(nsave_depths,nsave);
         results.T = zeros(nsave_depths,nsave);
@@ -300,6 +303,7 @@ for isetup = 5:5
             qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,1e9,0))^(1/3)*dTnu(Tm)^(4/3);% note assumes 1 GPa-pressure creep viscosity
             % temperature difference across the boundary layer:
             DTbl = arh*dTnu(Tm);
+            delta_bl = k(Tm)*DTbl/qbl; % boundary layer thickness
             Tl = Tm-DTbl;% temp at base of conductive layer
             dH = rho*Cp*DTbl; % enthalpy change across the lid
             % rate of change of mantle temperature
@@ -647,6 +651,13 @@ for isetup = 5:5
             Tb_last = Tb;
             Tm_last = Tm;
 
+            % compute the mantle potential temperature
+            z_lith = (Ro-Ri)+z + delta_bl;% lithosphere thickness = lid thickness + boundary layer thickness
+            Tp = Tm/exp(alpha_v*g*z_lith/Cp);
+            if time == 0
+                results.Tp(1) = Tp;
+            end
+
             time = time + dt;
 
             if (time >= plot_times(iplot) || time >= t_end )
@@ -686,6 +697,8 @@ for isetup = 5:5
                 results.z(isave) = z;
                 results.Ri(isave) = Ri;
                 results.Tm(isave) = Tm;
+                results.z_lith(isave)=z_lith;
+                results.Tp(isave) = Tp;
                 % results.qb(isave) = total_heating;
                 results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
                 results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
@@ -754,7 +767,7 @@ for isetup = 5:5
         strength = cohesion*cosd(phi) - sigma_m*sind(phi);
         % Plot strength envelope from Mueller and Phillips 1995
         delta_sigma = -0.786*plith;
-        %% 
+        %%
         mask1 = mask & results.time>(no_stress_time+save_interval*10);
 
         figure();
@@ -807,12 +820,12 @@ for isetup = 5:5
         srmax = max(max(abs(results.sigma_r(:,mask)/1e6)));
 
         hold on
-        
+
         set(gca,'YDir','reverse');
         set(gca,'XDir','reverse');
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
-        
+
         caxis([-1 1]*srmax)
         hcb.Label.String = '\sigma_r (MPa)';
         set(gca,'FontSize',14)
@@ -826,28 +839,28 @@ for isetup = 5:5
         exportgraphics(gcf,filename,'ContentType','vector');
         savefig(gcf,[filename(1:end-4) '.fig']);
 
-%% plot present-day sigma-r and sigma-t profiles
-figure()
-ind = find(mask,1,'last');
-plot(results.sigma_r(:,ind)/1e6,save_depths/1000,'DisplayName','\sigma_r');
-hold on
-plot(results.sigma_t(:,ind)/1e6,save_depths/1000,'DisplayName','\sigma_t');
-legend();
-set(gca,'Ydir','reverse')
-ylabel('Depth (km)')
-xlabel('Stress (MPa)')
-filename = sprintf('mars-present-stress-vs-depth-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
-exportgraphics(gcf,filename,'ContentType','vector');
-savefig(gcf,[filename(1:end-4) '.fig']);
+        %% plot present-day sigma-r and sigma-t profiles
+        figure()
+        ind = find(mask,1,'last');
+        plot(results.sigma_r(:,ind)/1e6,save_depths/1000,'DisplayName','\sigma_r');
+        hold on
+        plot(results.sigma_t(:,ind)/1e6,save_depths/1000,'DisplayName','\sigma_t');
+        legend();
+        set(gca,'Ydir','reverse')
+        ylabel('Depth (km)')
+        xlabel('Stress (MPa)')
+        filename = sprintf('mars-present-stress-vs-depth-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+        exportgraphics(gcf,filename,'ContentType','vector');
+        savefig(gcf,[filename(1:end-4) '.fig']);
 
 
         %% multi panel plot of all model quantities
-        
+
         xscale = 'linear';
         ax=[];
         figure();
         t=tiledlayout(7,1,'TileSpacing','compact','Padding','none');
-        
+
         % nexttile
         % contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
         % hold on
@@ -868,14 +881,20 @@ savefig(gcf,[filename(1:end-4) '.fig']);
         %
         % tile 2...
         %
+
+        % thermal lithosphere thickness (lid + thermal boundary layer)
+        % 450 +/- 100 km
+
         nexttile
         contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
         contourf(tga(mask),save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
         plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        plot(tga(mask),results.z_lith(mask)/1000,'--','Color','k','LineWidth',1);
         hold on
         contour(tga(mask),save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
-        
+        plot(0,450,'rs');
+        errorbar(0,450,-100,100);
 
         set(gca,'YDir','reverse');
         hcb = colorbar();
@@ -893,6 +912,7 @@ savefig(gcf,[filename(1:end-4) '.fig']);
         %     plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
         % end
         % TEMPERATURE
+
         nexttile
         contourf(tga(mask),save_depths/1000,results.T(:,mask),64,'Color','none'); %shading flat;
         hold on
@@ -917,7 +937,7 @@ savefig(gcf,[filename(1:end-4) '.fig']);
         text(0.025,0.85,char('A'+2),'FontSize',12,'Units','normalized');
         %
         % e_t
-        %        
+        %
         nexttile
         plot(tga(mask1),results.e_t(1,mask1)*1e3,'k');
         ylabel('\epsilon_t (10^{-3})')
@@ -925,7 +945,7 @@ savefig(gcf,[filename(1:end-4) '.fig']);
         %
         % Pex
         %
-        nexttile      
+        nexttile
         plot(tga(mask1),-results.Pex(mask1)/1e6,'k');
         ylabel('\sigma_{rb} (MPa)');
         set(gca,'XScale',xscale);
@@ -936,9 +956,12 @@ savefig(gcf,[filename(1:end-4) '.fig']);
         %
         nexttile
         plot(tga(mask),results.Tm(mask),'k-');
+        hold on
+        plot(tga(mask),results.Tp(mask),'r');
         text(0.025,0.85,char('A'+5),'FontSize',12,'Units','normalized');
         ylabel('T_m (K)');
-     
+        % need to scale this to a potential temperature
+        % alpha * g/rho cp
 
         nexttile
         plot(tga(mask1),results.maximum_differential_stress(mask1)/1e6,'r','LineWidth',1);
@@ -954,7 +977,7 @@ savefig(gcf,[filename(1:end-4) '.fig']);
         axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
         linkaxes(t.Children(axmask),'x');
         set(gca,'XLim',[0 4.5]);
-        
+
         set(t.Children(axmask),'XTickLabel',[])
         set(gca,'XTickLabel',get(gca,'XTick'))
         set(t.Children(axmask),'XDir','reverse')
@@ -962,5 +985,221 @@ savefig(gcf,[filename(1:end-4) '.fig']);
         fig.Color = 'w';
         filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
         % exportgraphics(gcf,filename,'ContentType','vector');
+        %% new multi-panel plot
+        xscale = 'linear';
+        ax=[];
+        figure();
+        t=tiledlayout(5,1,'TileSpacing','compact','Padding','none');
+
+        % nexttile
+        % contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
+        % hold on
+        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
+        % plot(results.time(mask1)/seconds_in_year/1e6,results.maximum_stress_depth(mask1)/1e3,'r');
+        % plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        % %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
+        % set(gca,'YDir','reverse');
+        % hcb = colorbar();
+        % set(gca,'Colormap',crameri('-roma'))
+        % stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
+        % caxis([-1 1]*stmax)
+        % hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
+        % text(0.025,0.85,char('A'),'FontSize',12,'Units','normalized');
+        % ylabel('Depth (km)');
+        % set(gca,'XScale',xscale);
+        % set(gca,'YLim',[0 80]);
+        %
+        % tile 2...
+        %
+
+        % thermal lithosphere thickness (lid + thermal boundary layer)
+        % 450 +/- 100 km
+
+        nexttile([2,1])
+        contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
+        contourf(tga(mask),save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
+        hold on
+        plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        plot(tga(mask),results.z_lith(mask)/1000,'--','Color','k','LineWidth',1);
+        hold on
+        contour(tga(mask),save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+        plot(0,450,'ks','MarkerFaceColor','k');
+        errorbar(0,450,-100,100,'LineWidth',1);
+
+        set(gca,'YDir','reverse');
+        hcb = colorbar();
+        set(gca,'Colormap',crameri('-roma'))
+        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
+        caxis([-1 1]*stmax)
+        hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
+        text(-0.16,0.95,char('A'+0),'FontSize',12,'Units','normalized');
+        % xlabel('Time (years)');
+        % title(label);
+        ylabel('Depth (km)');
+        set(gca,'XScale',xscale);
+        hold on;
+        % for i=1:ifail-1
+        %     plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
+        % end
+        % TEMPERATURE
+
+        nexttile
+        contourf(tga(mask),save_depths/1000,results.T(:,mask),64,'Color','none'); %shading flat;
+        hold on
+        plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        set(gca,'YDir','reverse');
+        % ax1 = gca();
+        % ax1.FontSize=8;
+        set(gca,'Colormap',crameri('-lajolla'))
+        hcb = colorbar();
+        hcb.Label.String = 'Temperature (K)';
+        text(-0.16,0.95,char('A'+1),'FontSize',12,'Units','normalized');
+        % xlabel('Time (years)');
+        ylabel('Depth (km)');
+        set(gca,'XScale',xscale);
+        hold on;
+        %
+        % u_r
+        %
+        % nexttile
+        % plot(tga(mask),results.ur_base(mask)/1e3,'k')
+        % ylabel('u_r (km)')
+        % text(0.025,0.85,char('A'+2),'FontSize',12,'Units','normalized');
+        %
+        % e_t
+        %
+        nexttile
+        plot(tga(mask1),results.e_t(1,mask1)*1e3,'k');
+        ylabel('\epsilon_t (10^{-3})')
+        text(-0.16,0.95,char('A'+2),'FontSize',12,'Units','normalized');
+        %
+        % Pex
+        %
+        % nexttile
+        % plot(tga(mask1),-results.Pex(mask1)/1e6,'k');
+        % ylabel('\sigma_{rb} (MPa)');
+        % set(gca,'XScale',xscale);
+        % hold on
+        % text(0.025,0.85,char('A'+4),'FontSize',12,'Units','normalized');
+        %
+        % Tm
+        %
+        nexttile
+        % Filiberto and Dasgupta 2015, Table 2
+        age_temperature_data = {
+            1450,30,4.21,0.35,'Gale Crater';
+            1445,85,3.65,NaN,'Gusev Crater';
+            1475,15,3.8,0.5,'Meridiani Planum';
+            % 1400,30,3.35,0.35,'Orbital spectroscopy';
+            % 1370,40,1.5,1.5,'Orbital spectroscopy';
+            % 1550,10,0.472,0.042,'Orbital spectroscopy';
+            % 1480,10,0.18,0.011,'Orbital spectroscopy';
+            1430,15,4.428,0.025,'NWA 7034 (Clast), Filiberto and Dasgupta (2015)'};
+        hold on
+        plot([age_temperature_data{:,3}],[age_temperature_data{:,1}]+273.15,'ks','LineStyle','none','MarkerFaceColor','k');
+        errorbar([age_temperature_data{:,3}],[age_temperature_data{:,1}]+273.15,-[age_temperature_data{:,2}],[age_temperature_data{:,2}],...
+            -[age_temperature_data{:,4}],[age_temperature_data{:,4}],'k','LineStyle','none');
+        hold on
+        plot(tga(mask),results.Tm(mask),'r-','LineWidth',1);
+        hold on
+        plot(tga(mask),results.Tp(mask),'k','LineWidth',1);
+        text(-0.16,0.95,char('A'+3),'FontSize',12,'Units','normalized');
+        % observational constraints
+        % Huang et al., PNAS
+        plot(0,1605,'ks','MarkerFaceColor','k');
+        errorbar(0,1605,-100,100,'k');
+
+        set(gca,'Box','on')
+        % Filiberto and Dasgupta 2015
+        % plot(4.21,1450+273,'ks');
+        % errorbar(4.21,1450+273,-30,30,-0.35,0.35,'k');
+        % Filiberto and Dasgupta 2015, NWA
+        % plot(4.428,1430+273,'ks');
+        % errorbar(4.428,1430+273,-15,15,-0.025,0.025,'k');
+        % Filiberto and Dasgupta 2011
+        % plot(3.65,1445+273,'ks');
+        % errorbar(3.65,1445+273,-85,85,'k');
+        % plot(3.8,1475+273,'ks');
+        % errorbar(3.8,1475+273,-15,15,-0.5,0.5,'k');
+
+        ylabel('T_m (K)');
+        % need to scale this to a potential temperature
+        % alpha * g/rho cp
+
+        % nexttile
+        % plot(tga(mask1),results.maximum_differential_stress(mask1)/1e6,'r','LineWidth',1);
+        % hold on
+        % plot(tga(mask1),-results.minimum_differential_stress(mask1)/1e6,'b','LineWidth',1);
+        % ylabel('|\sigma_t-\sigma_r| (MPa)')
+        % text(0.025,0.85,char('A'+6),'FontSize',12,'Units','normalized');
+        xlabel('Time (Ga)');
+        set(gca,'XScale',xscale);
+
+        fig = gcf();
+        fig.Position(3:4) = [385   650];
+        axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
+        linkaxes(t.Children(axmask),'x');
+        set(gca,'XLim',[0 4.5]);
+
+        set(t.Children(axmask),'XTickLabel',[])
+        set(gca,'XTickLabel',get(gca,'XTick'))
+        set(t.Children(axmask),'XDir','reverse')
+
+        fig.Color = 'w';
+        filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+        exportgraphics(gcf,filename,'ContentType','vector');
+    
+        %% plot present-day stresses along with depth-distribution of marsquakes
+        
+        figure();
+        f=gcf();
+        f.Position(3:4) = [570 570];
+        ind = find(mask,1,'last');
+        tiledlayout(1,2);
+        nexttile
+        plot(results.sigma_t(:,ind)/1e6,save_depths/1e3,'LineWidth',1);
+        hold on
+        plot(results.sigma_r(:,ind)/1e6,save_depths/1e3,'LineWidth',1);
+        h=gca();
+        set(gca,'YDir','reverse');
+        legend('$\sigma_t$','$\sigma_r$','Interpreter','latex','FontSize',12,'location','SouthEast')
+        ylabel('Depth (km)','FontSize',12)
+        xlabel('Stress (MPa)','FontSize',12)
+        set(gca,'YLim',[0 250]);
+        set(gca,'XLim',[-125 250])
+        text(-0.2,0.98,'A','FontSize',16,'Units','normalized')
+        
+        nexttile
+        rectangle('Position',[0,0,0.08,12],'FaceColor',0.75*[1 1 1],'EdgeColor','none'); 
+        set(gca,'XLim',[0 0.08])
+        text(0.02,6,'HF Event Depths')
+        text(0.02,50,'LF Event Depths')
+        hold on
+        [z,Hprob,Dprob,Tprob]=ProbaQuakeDepth();
+        plot(Hprob,z,'LineWidth',1);
+        hold on
+        plot(Dprob,z,'LineWidth',1);
+        plot(Tprob,z,'LineWidth',1);
+%Stahler    
+        legend('Drilleau et al. (2022)','Durán et al. (2022)','Stähler et al. (2022)','Location','Southeast','FontSize',8)
+        set(gca,'YDir','reverse')
+        set(gca,'YLim',h.YLim);
+        set(gca,'Box','on')
+                text(-0.2,0.98,'B','FontSize',16,'Units','normalized')
+
+        xlabel('Marsquake prob. (-)','FontSize',12)
+        filename = sprintf('mars-final-stress-with-marsquake-depths-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+        exportgraphics(gcf,filename,'ContentType','vector');
+
+        %% moment integral
+        dst_dt = (results.sigma_t(:,ind)-results.sigma_t(:,ind-1))/(results.time(ind)-results.time(ind-1));
+        dsr_dt = (results.sigma_r(:,ind)-results.sigma_r(:,ind-1))/(results.time(ind)-results.time(ind-1));
+        dsdt = abs(dst_dt-dsr_dt);% Pa/s
+        
+        dr = diff(save_depths)';
+        dA = (4*pi*(Ro-save_depths(1:end-1)'+dr/2).^2);
+        moment = dr.*dA.*(0.5.*(dsdt(1:end-1)+dsdt(2:end)));% Pa*m^3/s (N-m/s)
+        total_moment = sum(moment(~isnan(moment)))*3.15e7; %N-m/year
+
     end
 end

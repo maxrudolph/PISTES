@@ -4,14 +4,14 @@ close all;
 % run the thermal evolution model
 seconds_in_year = 3.1558e7;
 parameters.no_stress_time = 0.5e9;
+reference_no_stress_time = 0.5e9;
 % parameters.crust_heat_fraction=0.5;
 % parameters.viscosity = 3e20;
 parameters.do_plots = false;
 
-
-nvisc=10;
+nvisc=20;
 visc = logspace(20,22,nvisc);
-nhf=11;
+nhf=21;
 hf = linspace(0.3,0.7,nhf);
 nstress = 10;
 nst = linspace(0,3.5e9,nstress);
@@ -158,6 +158,8 @@ f.Position(3:4) = [530   602];
 t=tiledlayout(3,2,"TileSpacing","compact","Padding","none","TileIndexing","rowmajor");
 nexttile
 contourf(hf,nst/1e9,mantle_temperature);
+hold on;
+plot(reference_crust_heat_fraction,reference_no_stress_time/1e9,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 % set(gca,'YScale','log')
 hcb=colorbar()
 hcb.Label.String = 'T_m (K)';
@@ -169,6 +171,8 @@ text(0.05,0.9,'A','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,nst/1e9,final_lid_thickness/1e3);
+hold on;
+plot(reference_crust_heat_fraction,reference_no_stress_time/1e9,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 % set(gca,'YScale','log')
 hcb = colorbar();
 hcb.Label.String = 'Thickness (km)';
@@ -181,6 +185,8 @@ text(0.05,0.9,'B','Units','normalized','FontSize',16)
 
 nexttile;
 contourf(hf,nst/1e9,max_stress_depth/1e3);
+hold on;
+plot(reference_crust_heat_fraction,reference_no_stress_time/1e9,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 % set(gca,'YScale','log')
 hcb = colorbar();
 hcb.Label.String = 'Depth (km)';
@@ -193,6 +199,8 @@ text(0.05,0.9,'C','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,nst/1e9,stress_crossover_depth/1e3);
+hold on;
+plot(reference_crust_heat_fraction,reference_no_stress_time/1e9,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 % set(gca,'YScale','log')
 hcb=colorbar()
 hcb.Label.String = 'Depth (km)';
@@ -205,6 +213,8 @@ text(0.05,0.9,'D','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,nst/1e9,max_differential_stress/1e6);
+hold on;
+plot(reference_crust_heat_fraction,reference_no_stress_time/1e9,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 % set(gca,'YScale','log')
 hcb=colorbar();
 hcb.Label.String = 'Stress (MPa)';
@@ -216,6 +226,8 @@ text(0.05,0.9,'E','Units','normalized','FontSize',16)
 
 nexttile
 contourf(hf,nst/1e9,min_differential_stress/1e6);
+hold on;
+plot(reference_crust_heat_fraction,reference_no_stress_time/1e9,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
 % set(gca,'YScale','log')
 hcb=colorbar();
 hcb.Label.String = 'Stress (MPa)';
