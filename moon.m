@@ -13,7 +13,7 @@ addpath core; % this is where the helper functions live.
 addpath mars;
 addpath ~/sw/matlab/crameri
 
-nrs = [256]; % number of points used in the radial direction
+nrs = [512]; % number of points used in the radial direction
 
 for isetup = 6:6
     if isetup == 6 % Moon
@@ -37,10 +37,19 @@ for isetup = 6:6
         viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
         mub=3e20;               % Reference viscosity (at reference temperature)
         Tref = 1600;            % Reference temperature, Kelvin.
-        Q=300;                  % value from Michaut et al. 2025
         R=8.314e-3;             % in kJ/mol/K
-        mu = @(T,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
-        dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
+        if viscosity_model == 2
+            mub=3e20;               % Reference viscosity (at reference temperature)
+            Q=300;                  % value from Michaut et al. 2025, kJ/mol
+            mu = @(T,P,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
+            dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
+        elseif viscosity_model==3
+            viscosity.d = 7.08e-3;  %grain size in m. 7.08e-3 gives 3e20 Pa-s at 1 GPa pressure and 0 stress
+            % viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
+            Q=375; % Q used in hirth and kohlstedt model - use it for the mantle too?
+            mu = @(T,P,stress) hirth_kohlstedt(stress,T,viscosity.d,P);
+            dTnu = @(T) R/Q*T^2;
+        end
 
         % crust properties
         rhoc=2900;
@@ -48,7 +57,7 @@ for isetup = 6:6
 
         % Mechanical properties
         nu = 0.25;              % Poisson ratio of lithosphere (-)
-        E = 0.8e11;             % shear modulus of lithosphere (Pa) MAX: 5e9 (T&S Appendix B5, for basalt/gabbro)
+        E = 0.8e11;             % shear modulus of lithosphere (Pa) (T&S Appendix B5, for basalt/gabbro)
         K_eff = 4e11;           % effective bulk modulus of mantle+core (Pa)
         alpha_v = 2.5e-5;       % volumetric thermal expansivity (1/K)
         alpha_l = alpha_v/3;    % coefficient of linear thermal expansion ( alpha_v/3 ) (1/K)
@@ -56,7 +65,7 @@ for isetup = 6:6
         % alpha_v = 0; % eliminate mantle shrinkage...
 
         % Heat transport properties:
-        Cp = 1150;              % specific heat capacity, J/kg/K
+        Cp = 1150;            % specific heat capacity, J/kg/K
         k = @(T) 4;           % Thermal conductivity, W/m/K (Thieriet et al., 2019)
 
         % Initial and boundary conditions
@@ -88,7 +97,7 @@ for isetup = 6:6
         % mantle heating = [h]*rho*V
         crustal_heating_factor = crust_heat_fraction/crust_mass_fraction; % this is the enrichment in volumetric heating relative to primitive mantle material
         mantle_heating_factor = (1-crust_heat_fraction)/(1-crust_mass_fraction);
-        g = 1.62;           % surface gravity (m/s^2)
+        g = 1.625;           % surface gravity (m/s^2)
 
         kappa = k(Tb)/rho/Cp;           % thermal diffusivity m^2/s
 
@@ -104,6 +113,8 @@ for isetup = 6:6
         label = [label '-goldsbykohlstedt'];
     elseif viscosity_model == 2
         label = [label '-arrhenius']
+    elseif viscosity_model == 3
+        label = [label '-diffdisl']
     else
         error('not implemented');
     end
@@ -126,7 +137,7 @@ for isetup = 6:6
         nsave_depths = length(save_depths);
         sigma_t_store = zeros(nsave_depths,nsave);
 
-        results.time = zeros(nsave,1);
+        results.time = NaN*zeros(nsave,1); results.time(1) = 0;
         results.thickness = zeros(nsave,1); results.thickness(1) = Ro-Ri;
         results.z = zeros(nsave,1);
         results.Ri = zeros(nsave,1); results.Ri(1) = Ri;
@@ -137,11 +148,14 @@ for isetup = 6:6
         results.e_r = NaN*zeros(nsave_depths,nsave);
         results.Pex = zeros(nsave,1);
         results.Tm = zeros(nsave,1); results.Tm(1) = Tm0;
+        results.Tp = zeros(nsave,1);
+        results.z_lith = zeros(nsave,1); results.z_lith(1) = Ro-Ri;
         results.Pex_crit = zeros(nsave,1);
         results.dTdr = zeros(nsave_depths,nsave);
         results.T = zeros(nsave_depths,nsave);
         results.Tb = zeros(nsave,1);
         results.ur = zeros(nsave_depths,nsave);
+        results.ur_base = NaN*zeros(1,nsave);
         results.failure_time = zeros(1,nsave);
         results.failure_P = zeros(1,nsave);
         results.failure_Pex_crit = zeros(1,nsave);
@@ -152,6 +166,10 @@ for isetup = 6:6
         results.failure_erupted_volume = NaN*zeros(1,nsave);
         results.failure_erupted_volume_pressurechange = NaN*zeros(1,nsave);
         results.failure_erupted_volume_volumechange = NaN*zeros(1,nsave);
+        results.stresss_crossover_depth = NaN*zeros(1,nsave);
+        results.maximum_differential_stress = NaN*zeros(1,nsave);
+        results.minimum_differential_stress = NaN*zeros(1,nsave);
+        results.maximum_stress_depth = NaN*zeros(1,nsave);
         erupted_volume = 0;
         erupted_volume_pressurechange = 0;
         erupted_volume_volumechange = 0;
@@ -270,9 +288,10 @@ for isetup = 6:6
             Slid = 4*pi*(Ro-D)^2;
             h_conv = mantle_heating_factor*rho*mars_heating(time/seconds_in_year); % mantle volumetric heat production
             % boundary layer heat transport into the lid:
-            qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,0))^(1/3)*dTnu(Tm)^(4/3);
+            qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,1e9,0))^(1/3)*dTnu(Tm)^(4/3);% note assumes 1 GPa-pressure creep viscosity
             % temperature difference across the boundary layer:
             DTbl = arh*dTnu(Tm);
+            delta_bl = k(Tm)*DTbl/qbl; % boundary layer thickness
             Tl = Tm-DTbl;% temp at base of conductive layer
             dH = rho*Cp*DTbl; % enthalpy change across the lid
             % rate of change of mantle temperature
@@ -347,7 +366,7 @@ for isetup = 6:6
             pex_store = zeros(maxiter,1);
             pexpost_store = zeros(maxiter,1);
             for iter=1:maxiter
-                if iter==100
+                if iter>100
                     [tmp,ind] = unique(pex_store(1:iter-1));
                     Pex = interp1(pexpost_store(ind)-pex_store(ind),pex_store(ind),0,'linear','extrap');
                 elseif iter>1
@@ -363,6 +382,13 @@ for isetup = 6:6
 
                 % Pex_crit = (rhobar-rho_lith)*(Ro-(Ri-z))*g;
 
+                % compute hydrostatic pressure (needed for rheology)
+                phydro = zeros(size(T));
+                phydro(end) = 0;
+                for i=(length(phydro)-1):-1:1
+                    phydro(i) = phydro(i+1) + rho*g*(grid_r(i+1)-grid_r(i));
+                end
+
                 % calculate viscosity at each node
                 visc_converged = false;
                 visc_iter = 100;
@@ -377,7 +403,7 @@ for isetup = 6:6
 
 
                     mu_node = zeros(nr,1);
-                    mu_node(:) = mu(T,siiD);
+                    mu_node(:) = mu(T,phydro,siiD);
                     % reduce Maxwell time in region experiencing failure
                     if all(failure_mask)
                         if Pex_last >= Pex_crit
@@ -475,7 +501,7 @@ for isetup = 6:6
                 %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
             
                 % check for convergence
-                if abs( Pex_post-Pex )/abs(Pex) < 1e-3 || abs(Pex_post-Pex) < 1e2
+                if abs( Pex_post-Pex )/abs(Pex) < 1e-4 || abs(Pex_post-Pex) < 1e1
                     fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
                     converged = true;
                 elseif iter==maxiter
@@ -613,6 +639,13 @@ for isetup = 6:6
             Tb_last = Tb;
             Tm_last = Tm;
 
+            % compute the mantle potential temperature
+            z_lith = (Ro-Ri)+z + delta_bl;% lithosphere thickness = lid thickness + boundary layer thickness
+            Tp = Tm/exp(alpha_v*g*z_lith/Cp);
+            if time == 0
+                results.Tp(1) = Tp;
+            end
+
             time = time + dt;
 
             if (time >= plot_times(iplot) || time >= t_end )
@@ -652,16 +685,36 @@ for isetup = 6:6
                 results.z(isave) = z;
                 results.Ri(isave) = Ri;
                 results.Tm(isave) = Tm;
+                results.z_lith(isave)=z_lith;
+                results.Tp(isave) = Tp;
                 % results.qb(isave) = total_heating;
                 results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
                 results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
                 results.e_t(:,isave) = interp1(Ro-grid_r,et_last,save_depths);
                 results.e_r(:,isave) = interp1(Ro-grid_r,er_last,save_depths);
                 results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
+                results.ur_base(isave) = ur_last(1);
                 results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
                 results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
                 results.Tb(isave) = Tb;
                 results.Pex(isave) = Pex;
+
+                [strtmp,indtmp] = max(sigma_t-sigma_r);
+                results.maximum_differential_stress(isave) = strtmp;
+                results.maximum_stress_depth(isave) = Ro-grid_r(indtmp);
+                results.minimum_differential_stress(isave) = min(sigma_t-sigma_r);
+
+                [indtmp] = find( sigma_t-sigma_r >= 0,1,'last'); %shallowest value where sigma_t > sigma_r
+                if indtmp < nr
+                    ytmp = sigma_t(indtmp:indtmp+1)-sigma_r(indtmp:indtmp+1);
+                    dydr = diff(ytmp)/(grid_r(indtmp+1)-grid_r(indtmp));
+                    rtmp = grid_r(indtmp) - ytmp(1)/dydr;
+                else
+                    rtmp = grid_r(indtmp);
+                end
+                if ~isempty(rtmp)
+                    results.stresss_crossover_depth(isave) = Ro-rtmp;
+                end
                 % results.Pex_crit(isave) = Pex_crit;
                 % results.XNH3(isave) = X;
                 last_store = time; isave = isave+1;
@@ -673,7 +726,8 @@ for isetup = 6:6
 
 
         %% Pseudocolor stress plot
-        mask = 1:(isave-1); % select only timesteps that exist
+        % mask = 1:(isave-1); % select only timesteps that exist
+        mask = results.time <= time;
         results.differential_stress = results.sigma_t - results.sigma_r; % differential stress
         ds_max_depth = zeros(1,isave-1);
         for i=1:isave-1
