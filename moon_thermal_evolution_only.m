@@ -1,3 +1,7 @@
+clear;
+% close all;
+
+% properties of the mantle and crust
 % Script to solve coupled ice shell thermal and stress evolution
 % Max Rudolph, March 19, 2020
 % adapted for the moon, June 2025
@@ -51,7 +55,7 @@ for isetup = 6:6
         end
 
         % crust properties
-        rhoc=2900;
+        rhoc=2900;        
         kcrust=3.0;
 
         % Mechanical properties
@@ -80,7 +84,7 @@ for isetup = 6:6
         % Planet properties
         Ro = 1.740e6;      % outer radius of lithosphere
         Ri = Ro-thickness;  % initial inner radius of lithosphere
-        Rc = 390*1000;       % core radius, m 
+        Rc = 390*1000;       % core radius, m
         h_crust = 40e3;     % crust thickness (assumed constant)
         crust_heat_fraction = 0.8; % fraction of primitive mantle heat production concentrated within crust
         moon_mass = 0.07346e24;
@@ -98,7 +102,7 @@ for isetup = 6:6
         mantle_heating_factor = (1-crust_heat_fraction)/(1-crust_mass_fraction);
         g = 1.625;           % surface gravity (m/s^2)
 
-        kappa = k(Tb)/rho/Cp;           % thermal diffusivity m^2/s
+        kappa = k(Tb)/rho/Cp;           % thermal diffusivity m^2/s        
 
         % Failure criterion:
         tensile_strength = 1e99; % tensile strength, Pa
@@ -200,7 +204,7 @@ for isetup = 6:6
         rhovec = rho*ones(nr,1); rhovec(iscrust) = rhoc;
 
         [T_last,dTdotdr] = solve_temperature_shell_mars(grid_r,T_last,Tb,Ts,kvec,rhovec,Cpvec,H,Inf,0.0); % call solver with infinite timestep
-        % T_last = Tb+(Ts-Tb)/(grid_r(end)-grid_r(1))*(grid_r-grid_r(1))';
+        %T_last = Tb+(Ts-Tb)/(grid_r(end)-grid_r(1))*(grid_r-grid_r(1))';
         % dTdotdr = zeros(size(T_last));
         Tm = Tm0; % mantle temperature
 
@@ -282,7 +286,7 @@ for isetup = 6:6
             % total_heating = 0; % for now, to obtain a solution.
             % qb_net = qb - total_heating; % first term is conducted heat. second term is heat supplied from below.
 
-            % Implement the thermal evolution model...            
+            % Implement the thermal evolution model...
             D = Ro-(Ri-z_last); % z is the amount by which the lid has thickened
             mantle_volume = 4/3*pi*((Ro-D)^3-Rc^3);
             Cm = rho*Cp*mantle_volume; % mantle heat capacity
@@ -323,10 +327,9 @@ for isetup = 6:6
             % update the mantle temperature
             delta_rb = dDdt*dt;
             z = z_last + delta_rb;
-            % update the basal temperature            
+            % update the basal temperature
             Tm = Tm + dTmdt*dt;
             Tb = Tm - arh*dTnu(Tm);
-
 
             % compute the melting temperature for the new NH3 content at
             % the ocean-ice interface:
@@ -359,287 +362,13 @@ for isetup = 6:6
 
             [T,dTdotdr] = solve_temperature_shell_mars(grid_r,T_last,Tb,Ts,kvec,rhovec,Cpvec,H,dt,delta_rb);
 
-            % 3. Nonlinear loop over pressure.
-            % because the ocean pressure depends on the uplift, we make a guess
-            % (above). Using this guess, we calculate stresses, strains, and
-            % displacements. Then we re-calculate the pressure using the new value
-            % of radial displacement. We continue until the pressure used in the
-            % calculations has converged to the pressure consistent with the
-            % calculated displacement;
-            converged = false;
-            pex_store = zeros(maxiter,1);
-            pexpost_store = zeros(maxiter,1);
-            for iter=1:maxiter
-                if iter>100
-                    [tmp,ind] = unique(pex_store(1:iter-1));
-                    Pex = interp1(pexpost_store(ind)-pex_store(ind),pex_store(ind),0,'linear','extrap');
-                elseif iter>1
-                    Pex = Pex + relaxation_parameter*(Pex_post-Pex);
-                else
-                    Pex = Pex_last;
-                end
-
-                % compute height to which water would rise
-                % [ptmp,Ttmp,ztmp,rhotmp] = ammonia_adiabatic_profile(X,g*rho_lith*(grid_r(end)-grid_r(1)),g);
-                % rhobar = cumtrapz(ztmp,rhotmp);
-                % rhobar = 1/(ztmp(end)-ztmp(1))*rhobar(end);
-
-                % Pex_crit = (rhobar-rho_lith)*(Ro-(Ri-z))*g;
-
-                % compute hydrostatic pressure (needed for rheology)
-                phydro = zeros(size(T));
-                phydro(end) = 0;
-                for i=(length(phydro)-1):-1:1
-                    phydro(i) = phydro(i+1) + rho*g*(grid_r(i+1)-grid_r(i));
-                end
-
-                % calculate viscosity at each node
-                visc_converged = false;
-                visc_iter = 100;
-                ivisc = 1;
-                while ~visc_converged && ivisc <= visc_iter
-                    % compute mu for current siiD
-                    if ivisc == 1
-                        siiD = siiD_last;
-                    else
-                        siiD = siiD_post;
-                    end
-
-
-                    mu_node = zeros(nr,1);
-                    mu_node(:) = mu(T,phydro,siiD);
-                    % reduce Maxwell time in region experiencing failure
-                    if all(failure_mask)
-                        if Pex_last >= Pex_crit
-                            % Calculate the volume erupted (dP)*beta*V0 + V-V0
-                            pressure_contribution = (Pex_last-Pex_crit)*beta_w*(4/3*pi*((Ri-z)^3-Rc^3));
-                            urelax = (Ri-z)/E*(1-2*nu)*(Pex_last-Pex_crit); % Manga and Wang (2007) equation 4
-                            volume_contribution = (Ri-z)^2*urelax*4*pi; % (4*pi*R^2)*dr
-                        else
-                            pressure_contribution = 0;
-                            volume_contribution = 0;
-                        end
-                        % reset stresses and uplift
-                        sigma_r_last = 0*sigma_r_last;
-                        sigma_t_last = 0*sigma_t_last;
-                        er_last = 0*er_last;
-                        et_last = 0*et_last;
-                        ur_last = 0*ur_last;
-                        Pex=0; % force zero pressure.
-                        converged = true;
-                        Ri = Ri - z;
-                        z = 0;
-                        z_last=0;
-                        % move the inner radius effectively to the current position
-                        % of the base of the ice shell. Then set the amount of
-                        % freezing to zero.
-                    elseif( any(failure_mask) )
-                        minimum_viscosity_prefactor = 0; % maximum allowable fractional reduction in viscosity
-                        mu_node(failure_mask) = min(mu_node(failure_mask),max(minimum_viscosity_prefactor*mu_node(failure_mask),0.1*E*dt));  % timestep = 10x(maxwell time)
-                        above_crack = find( failure_mask,1,'last');
-                        above_crack_mask = false(size(failure_mask));
-                        above_crack_mask( above_crack+1 : end ) = true;
-                        %                 mu_node(above_crack_mask) = min( mu_node(above_crack_mask),100*E*dt ); % limit maximum viscosity to 100*maxwell time
-                        %                 for i=1:3
-                        %                 tmp = exp(smooth(log( mu_node )));
-                        %                 mu_node(~failure_mask) = tmp(~failure_mask);
-                        %                 end
-                        %                 mu_node = exp(smooth(log( mu_node )));
-                        if iter==1
-                            Pex=0; % If failure occurs, it's better to guess that all pressure is relieved. Other choices could cause convergence problems.
-                        end
-                    end
-
-                    % Calculate Stresses
-                    [sigma_r,sigma_t,sigma_rD,sigma_tD] = solve_stress_viscoelastic_shell(grid_r,mu_node,sigma_r_last,alpha_l*dTdotdr,-Pex,E,nu,dt);
-                    siiD_post = sqrt( 0.5*(sigma_rD.^2 + 2*sigma_tD.^2) );
-                    norm_change = min(norm(siiD_post-siiD)/norm(siiD),norm(siiD_post-siiD));
-                    %                     disp([num2str(ivisc) ' change in norm of siiD:' num2str(norm_change)]);
-                    if isnan(norm_change)
-                        keyboard
-                    elseif norm_change < 1e-4
-                        visc_converged = true;
-                    end
-
-                    ivisc = ivisc+1;
-                end
-                if all(failure_mask)
-                    erupted_volume = erupted_volume + pressure_contribution + volume_contribution;
-                    erupted_volume_pressurechange = erupted_volume_pressurechange + pressure_contribution;
-                    erupted_volume_volumechange = erupted_volume_volumechange + volume_contribution;
-                end
-
-                % 5. Calculate the strains
-                dT = T-T_last;
-                dr1 = grid_r(2)-grid_r(1);
-                dr2 = grid_r(3)-grid_r(1);
-                L = [0 0 1;
-                    dr1^2 dr1 1;
-                    dr2^2 dr2 1];
-                R1 = T(1:3);
-                coef = L\R1;
-                dTdr_b = coef(2);
-                %             dTdr_b=(T(2)-Tb)/(grid_r(2)-grid_r(1));
-                dT(1) = delta_rb*dTdr_b;
-
-                dsigma_t = sigma_t - sigma_t_last;
-                dsigma_r = sigma_r - sigma_r_last;
-                %             mu_node(2:end-1) = exp(0.5*(log(mu_node(1:end-2))+log(mu_node(3:end))));
-                de_t = 1/E*(dsigma_t-nu*(dsigma_t+dsigma_r))+alpha_l*dT + dt/2*(sigma_tD./mu_node); % change in tangential strain
-                de_r = 1/E*(dsigma_r-2*nu*dsigma_t)         +alpha_l*dT + dt/2*(sigma_rD./mu_node); % HS91 equations A5-6
-                er = er_last + de_r;
-                et = et_last + de_t;
-                ur = grid_r'.*et; %radial displacement
-
-                ei = 2*de_t + de_r; % first invariant of strain
-                de_tD = de_t - 1/3*ei;
-                de_rD = de_r - 1/3*ei;
-                eiiD = sqrt( 0.5*(de_rD.^2 + 2*de_tD.^2) ); % second invariant of deviatoric strain
-
-                % re-calculate excess pressure using new uplift
-                %             Pex_post = 3*Ri^2/beta_w/(Ri^3-Rc^3)*(z*(rho_w-rho_i)/rho_w-ur(1));
-                Pex_post = 0*Pex_last + 3*K_eff*(Ri-z)^2/((Ri-z)^3-Rc^3)*(-(ur(1)-0*ur_last(1))) + K_eff*alpha_v*(Tm-Tm0);
-                % Pex_post = Pex_last;
-                % Calculate the critical excess presssure necessary to
-                % erupt water onto the surface.
-                %fprintf('iter %d. Pex_post %.2e Pex %.2e\n',iter,Pex_post,Pex);
-            
-                % check for convergence
-                if abs( Pex_post-Pex )/abs(Pex) < 1e-4 || abs(Pex_post-Pex) < 1e1
-                    fprintf('dt=%.2e yr, time=%.3e Myr, Pex_post %.6e Pex %.6e, converged in %d iterations\n',dt/seconds_in_year,(time+dt)/seconds_in_year/1e6,Pex_post,Pex,iter);
-                    converged = true;
-                elseif iter==maxiter
-                    error('Nonlinear loop failed to converge');
-                end
-
-                pex_store(iter) = Pex;
-                pexpost_store(iter) = Pex_post;
-                if converged
-                    break;
-                end
-            end%end nonlinear loop
-
-            % 5. Determine whether tensile failure has occurred
-            failure = tensile_failure_criterion(Ro-grid_r',sigma_t,rho,g,tensile_strength);
-            if(any(failure)) % failure is occurring
-                disp(['Failure criterion has been reached']);
-                idx_shallow = find(failure,1,'last');
-                idx_deep = find(failure,1,'first');
-                fprintf('Shallowest, deepest failure: %f, %f\n\n',Ro-grid_r(idx_shallow),Ro-grid_r(idx_deep));
-                fprintf('Failure time: %f Myr\n',time / seconds_in_year / 1e6);
-                fprintf('Surface stress at failure: %f MPa\n',sigma_t(end)/1e6);
-
-                % check to see if a crack could propagate to surface
-                % 1. Find the midpoint of the crack
-                % 2. Look upward - balance stresses on crack in upward
-                % direction
-                % 3. If crack reached surface, balance stresses on entire
-                % crack. Otherwise balance stresses in downward direction.
-                sigma_t_tot = sigma_t - rho*g*(Ro-grid_r');
-                depth = Ro-grid_r; % depth will be in descending order, i.e. deepest first
-                midpoint_depth = mean(depth([idx_shallow idx_deep]));
-                [~,midpoint_ind] = max( sigma_t_tot );
-                if midpoint_ind == nr
-                    stress_above = 0;
-                else
-                    stress_above = cumtrapz( grid_r(midpoint_ind:end), sigma_t_tot(midpoint_ind:end) );  % integrate in upward direction
-                end
-                stress_below = cumtrapz( depth(midpoint_ind:-1:1), sigma_t_tot(midpoint_ind:-1:1) ); % integrate in downward direction
-                if stress_above(end) >= 0
-                    disp('Crack reached surface');
-                    surface_failure = true;
-                    above_stress_integral = stress_above(end);
-                    net_tension = above_stress_integral + stress_below;
-                    % find depth at which crack stops
-                    ind = find(net_tension > 0,1,'last'); % net tension is ordered by increasing depth
-                    depth_tmp = depth(midpoint_ind:-1:1);
-                    max_depth = depth_tmp(ind); % depth at which crack stops
-                    min_depth = 0;
-                    if net_tension > 0
-                        disp('Crack reaches ocean!');
-                    end
-                else
-                    disp('Crack cannot reach surface');
-                    surface_failure = false;
-                    % find location where integral of stress is zero in upward
-                    % direction
-                    ind = find( stress_above > 0,1,'last');
-                    depth_tmp = depth(midpoint_ind:end);
-                    min_depth = depth_tmp(ind);
-                    % find depth at which crack stops
-                    ind = find(stress_below > 0,1,'last'); % net tension is ordered by increasing depth
-                    depth_tmp = depth(midpoint_ind:-1:1);
-                    max_depth = depth_tmp(ind);
-                end
-                fprintf('Relieving stresses between %e-%e m\n',min_depth,max_depth);
-                results.failure_thickness(ifail) = max_depth-min_depth;
-                results.failure_time(ifail) = time/seconds_in_year/1e6;
-                results.failure_P(ifail) = Pex;
-                results.failure_Pex_crit(ifail) = Pex_crit;
-
-                results.failure_top(ifail) = min_depth;
-                results.failure_bottom(ifail) = max_depth;
-                results.failure_sigma_t{ifail} = sigma_t;
-                results.failure_sigma_r{ifail} = sigma_r;
-                results.failure_r{ifail} = grid_r;
-
-
-                results.failure_z(ifail) = ztmp(end);
-
-                ifail = ifail + 1;
-                now_failing = depth >= min_depth & depth <= max_depth;
-                failure_mask = failure_mask | now_failing;
-
-                %                 failure_mask = false(size(sigma_r));
-                %                 failure_mask(failure) = true;
-                failure_time(now_failing) = time+dt;
-            else
-                no_longer_failing = failure_mask & (time - failure_time) >= 10*dtmin;
-                if any(failure_mask(no_longer_failing))
-                    results.failure_dP(ifail-1) = Pex-results.failure_P(ifail-1);
-                end
-                if all(failure_mask) && any(failure_mask(no_longer_failing))
-                    %if erupted_volume > 0
-                    results.failure_erupted_volume(ifail-1) = erupted_volume;
-                    results.failure_erupted_volume_volumechange(ifail-1) = erupted_volume_volumechange;
-                    results.failure_erupted_volume_pressurechange(ifail-1) = erupted_volume_pressurechange;
-                    %end
-                    erupted_volume = 0;
-                    erupted_volume_volumechange = 0;
-                    erupted_volume_pressurechange = 0;
-                end
-                failure_mask(no_longer_failing) = false;
-            end
-            yielding = eiiD > (cohesion - 1/3*ei*friction); % note that compression is negative
-            if any(yielding)
-                keyboard
-            end
-
             %5.75 consider resetting stresses if ice shell is
             %thinning?
-            if time < no_stress_time;
-                sigma_r = 0*sigma_r;
-                sigma_t = 0*sigma_t;
-                siiD = 0*siiD;
-                er = 0*er;
-                et = 0*et;
-                ur = 0*ur;
-                Pex = 0.0;
-                Tm0 = Tm;
-            end
-
 
             % 6. advance to next time step and plot (if needed)
-            % eccentricity_last = eccentricity;
-            sigma_r_last = sigma_r;
-            sigma_t_last = sigma_t;
-            siiD_last = siiD;
+
             T_last = T;
-            er_last = er;
-            et_last = et;
             z_last = z;
-            ur_last = ur;
-            Pex_last = Pex;
             Tb_last = Tb;
             Tm_last = Tm;
 
@@ -657,24 +386,11 @@ for isetup = 6:6
 
                 figure(hf);
                 subplot(1,4,1);
-                h=plot(sigma_r,Ro-grid_r);
-                plot(sigma_t,Ro-grid_r,'--','Color',h.Color);
-                subplot(1,4,2);
-                h=plot(er,Ro-grid_r);
-                plot(et,Ro-grid_r,'--','Color',h.Color);
                 subplot(1,4,3);
                 plot(T,Ro-grid_r);
-                subplot(1,4,4);
-                plot(ur,Ro-grid_r);
 
 
                 figure(hf2);
-                plot(ur(end),sigma_t(end),'.'); hold on;
-
-                figure(fig1a.h); % Nimmo's Figure 1a
-                h=plot(fig1a.ax(1),(Ro-grid_r)/1e3,sigma_t_last/1e6);
-                plot(fig1a.ax(2),(Ro-grid_r)/1e3,T_last,'--','Color',h.Color);
-
 
                 last_plot_time = time;
                 drawnow();
@@ -692,35 +408,10 @@ for isetup = 6:6
                 results.z_lith(isave)=z_lith;
                 results.Tp(isave) = Tp;
                 % results.qb(isave) = total_heating;
-                results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
-                results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
-                results.e_t(:,isave) = interp1(Ro-grid_r,et_last,save_depths);
-                results.e_r(:,isave) = interp1(Ro-grid_r,er_last,save_depths);
-                results.ur(:,isave) = interp1(Ro-grid_r,ur_last,save_depths);
-                results.ur_base(isave) = ur_last(1);
+
                 results.dTdr(:,isave) = interp1(Ro-grid_r,dTdotdr*dt,save_depths);
                 results.T(:,isave) = interp1(Ro-grid_r,T,save_depths);
                 results.Tb(isave) = Tb;
-                results.Pex(isave) = Pex;
-
-                [strtmp,indtmp] = max(sigma_t-sigma_r);
-                results.maximum_differential_stress(isave) = strtmp;
-                results.maximum_stress_depth(isave) = Ro-grid_r(indtmp);
-                results.minimum_differential_stress(isave) = min(sigma_t-sigma_r);
-
-                [indtmp] = find( sigma_t-sigma_r >= 0,1,'last'); %shallowest value where sigma_t > sigma_r
-                if indtmp < nr
-                    ytmp = sigma_t(indtmp:indtmp+1)-sigma_r(indtmp:indtmp+1);
-                    dydr = diff(ytmp)/(grid_r(indtmp+1)-grid_r(indtmp));
-                    rtmp = grid_r(indtmp) - ytmp(1)/dydr;
-                else
-                    rtmp = grid_r(indtmp);
-                end
-                if ~isempty(rtmp)
-                    results.stresss_crossover_depth(isave) = Ro-rtmp;
-                end
-                % results.Pex_crit(isave) = Pex_crit;
-                % results.XNH3(isave) = X;
                 last_store = time; isave = isave+1;
             end
         end
@@ -730,89 +421,11 @@ for isetup = 6:6
 
 
         %% Pseudocolor stress plot
-        % mask = 1:(isave-1); % select only timesteps that exist
-        mask = results.time <= time;
-        results.differential_stress = results.sigma_t - results.sigma_r; % differential stress
-        ds_max_depth = zeros(1,isave-1);
-        for i=1:isave-1
-            [~,ind] = max(results.differential_stress(:,i));
-            ds_max_depth(i) = save_depths(ind);
-        end
-        figure, plot(results.time(mask)/seconds_in_year/1e6,ds_max_depth);
-        ylabel('Depth of max. differential stress')
 
-        %% plot a coulomb failure criterion
-        tau_m = 0.5*abs(results.sigma_t-results.sigma_r);
-        plith = zeros(size(results.sigma_t));
-        for i=2:length(save_depths)
-            if save_depths(i) <= h_crust
-                rho1 = rhoc;
-            else
-                rho1 = rho;
-            end
-            plith(i,:) = plith(i-1,:) - rho1*g*(save_depths(i)-save_depths(i-1));
-        end
-        % plot coulomb failure criterion
-        sigma_m = 0.5*(results.sigma_t+plith + results.sigma_r+plith);
-        phi = atand(0.6);
-        cohesion = 0.0;
-        strength = cohesion*cosd(phi) - sigma_m*sind(phi);        
-        % Plot strength envelope from Mueller and Phillips 1995
-        delta_sigma = -0.786*plith;
-        
+        mask = ~isnan(results.time);
 
-        xscale = 'linear';
-        ax=[];
-        figure();
-        t=tiledlayout(6,1,'TileSpacing','compact','Padding','none');
-        % t.Units = 'centimeters';
-        % t.OuterPosition = [1 1 11 14];
-        nexttile
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
-        hold on
-        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
-        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,tau_m(:,mask) - strength(:,mask),[0 0],'Color','r','LineStyle','--'); %
-        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,abs(results.differential_stress(:,mask))-delta_sigma(:,mask),[0 0],'Color','g','LineStyle','--'); %
-        % contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+       t=tiledlayout(4,1);
 
-        plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
-        %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
-        set(gca,'YDir','reverse');        
-        hcb = colorbar();
-        set(gca,'Colormap',crameri('-roma'))
-        stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
-        caxis([-1 1]*stmax)
-        hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
-        text(0.025,0.85,char('A'),'FontSize',12,'Units','normalized');
-        % xlabel('Time (years)');
-        % title(label);
-        ylabel('Depth (km)');
-        set(gca,'XScale',xscale);
-        set(gca,'YLim',[0 200]);
-
-        nexttile
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
-
-        contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
-        hold on
-        plot(results.time(mask)/seconds_in_year/1e6,((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
-        hold on
-        contour(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
-
-        
-        %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
-        set(gca,'YDir','reverse');        
-        hcb = colorbar();
-        set(gca,'Colormap',crameri('-roma'))
-        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
-        caxis([-1 1]*stmax)
-        hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
-        text(0.025,0.85,char('A'+1),'FontSize',12,'Units','normalized');
-        % xlabel('Time (years)');
-        % title(label);
-        ylabel('Depth (km)');
-        set(gca,'XScale',xscale);
-        hold on;
         % for i=1:ifail-1
         %     plot(results.failure_time(i)*1e6*[1 1],[results.failure_top(i) results.failure_bottom(i)]/1e3,'r');
         % end
@@ -837,7 +450,7 @@ for isetup = 6:6
         nexttile
         plot(results.time(mask)/seconds_in_year/1e6,results.ur(1,mask),'k')
         ylabel('u_r (m)')
-            text(0.025,0.85,char('D'),'FontSize',12,'Units','normalized');
+        text(0.025,0.85,char('D'),'FontSize',12,'Units','normalized');
 
         nexttile
         plot(results.time(mask)/seconds_in_year/1e6,results.Pex(mask)/1e6,'k');
@@ -887,11 +500,11 @@ for isetup = 6:6
         axmask = arrayfun(@(x) isa(x,'matlab.graphics.axis.Axes'),t.Children);
 
         set(t.Children(axmask),'XTickLabel',[])
-        set(gca,'XTickLabel',get(gca,'XTick'))       
+        set(gca,'XTickLabel',get(gca,'XTick'))
 
         fig.Color = 'w';
         filename = sprintf('moon-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
-        exportgraphics(gcf,filename,'ContentType','vector');
+        % exportgraphics(gcf,filename,'ContentType','vector');
 
         %% new multi-panel plot
         tga = 4.5-results.time/seconds_in_year/1e9;
@@ -910,7 +523,7 @@ for isetup = 6:6
         plot(tga(mask),results.z_lith(mask)/1000,'--','Color','k','LineWidth',1);
         hold on
         contour(tga(mask),save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
-        
+
 
         set(gca,'YDir','reverse');
         hcb = colorbar();
@@ -919,7 +532,7 @@ for isetup = 6:6
         caxis([-1 1]*stmax)
         hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
         text(-0.16,0.95,char('A'+0),'FontSize',12,'Units','normalized');
-        
+
         ylabel('Depth (km)');
         set(gca,'XScale',xscale);
         hold on;
@@ -946,18 +559,18 @@ for isetup = 6:6
         plot(tga(mask1),results.e_t(1,mask1)*1e3,'k');
         ylabel('\epsilon_t (10^{-3})')
         text(-0.16,0.95,char('A'+2),'FontSize',12,'Units','normalized');
-        
+
         %
         % Tm
         %
         nexttile
-        
-        
+
+
         plot(tga(mask),results.Tm(mask),'r-','LineWidth',1);
         hold on
         plot(tga(mask),results.Tp(mask),'k','LineWidth',1);
         text(-0.16,0.95,char('A'+3),'FontSize',12,'Units','normalized');
-        
+
 
         set(gca,'Box','on')
 
@@ -976,10 +589,11 @@ for isetup = 6:6
         set(t.Children(axmask),'XDir','reverse')
 
         fig.Color = 'w';
-        filename = sprintf('moon-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
-        exportgraphics(gcf,filename,'ContentType','vector');
+        filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+        % exportgraphics(gcf,filename,'ContentType','vector');
 
 
 
     end
 end
+

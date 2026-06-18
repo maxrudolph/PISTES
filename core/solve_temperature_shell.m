@@ -78,7 +78,10 @@ val = val(1:ind-1);
 L = sparse(row,col,val,nr,nr);
 T = L\R;
 
-dTdr_b = (T(2)-Tb)/(grid_r(2)-grid_r(1));
+% dTdr_b = (T(2)-Tb)/(grid_r(2)-grid_r(1));
+dr1 = grid_r(2)-grid_r(1);
+
+dTdr_b = 1/dr1*(2*(T(2)-T(1)) - (T(3)-T(1))/2);
 Tdot = (T-T_last)/dt;
 Tdot(1) = dTdr_b*delta_rb/dt;
 dTdotdr = zeros(nr,1);

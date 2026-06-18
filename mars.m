@@ -33,7 +33,7 @@ for isetup = 5:5
     if isetup == 5 % Mars
         % Settings related to numerics
         label='Mars';
-        seconds_in_year = 3.1558e7;
+        seconds_in_year = 3.1556952e7;
         max_depth = 4e5; % maximum depth for saving solution values (m)
         relaxation_parameter = 1e-3;%1e-3; % used for fixed point iteration in pressure convergence loop.
         t_end = 4500e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
@@ -42,7 +42,7 @@ for isetup = 5:5
         no_stress_time = 0.5e9*seconds_in_year; % time before which stresses are not allowed to increase
 
         % Stuff related to the Mars thermal evolution model
-        arh =2.0;   % constant from Michaut equation 12
+        arh =2.54;   % constant from Michaut equation 12
         C   =0.5;   % Davaille and Jaupart 1993 constant for heat flux
 
         % Rheology
@@ -104,7 +104,7 @@ for isetup = 5:5
         mantle_mass = silicate_mass - crust_mass; % mass of the mantle
         mantle_density = mantle_mass/( 4/3*pi*((Ro-h_crust)^3-Rc^3));
         rho=mantle_density;
-        crust_mass_fraction = crust_mass/mantle_mass;
+        crust_mass_fraction = crust_mass/silicate_mass;
         % compute the heating per unit mass in the crust
         % mantle heating = [h]*rho*V
         crustal_heating_factor = crust_heat_fraction/crust_mass_fraction; % this is the enrichment in volumetric heating relative to primitive mantle material
@@ -294,7 +294,7 @@ for isetup = 5:5
             % qb_net = qb - total_heating; % first term is conducted heat. second term is heat supplied from below.
 
             % Implement the thermal evolution model...
-            D = Ro-Ri-z_last; % z is the amount by which the lid has thickened
+            D = Ro-(Ri-z_last); % z is the amount by which the lid has thickened
             mantle_volume = 4/3*pi*((Ro-D)^3-Rc^3);
             Cm = rho*Cp*mantle_volume; % mantle heat capacity
             Slid = 4*pi*(Ro-D)^2;
@@ -307,10 +307,9 @@ for isetup = 5:5
             Tl = Tm-DTbl;% temp at base of conductive layer
             dH = rho*Cp*DTbl; % enthalpy change across the lid
             % rate of change of mantle temperature
-            dTmdt = 1/Cm * (-Slid*qlid + h_conv*mantle_volume); % Michaut et al. Equation 18
+            dTmdt = 1/Cm * (-Slid*qbl + h_conv*mantle_volume); % Michaut et al. Equation 18
             % rate of change of lid thickness.
             dDdt = 1/dH * (qlid-qbl);   % Michaut et al. Equation 19
-            dTldt = (Tm-DTbl - T_last(1))/dt; %rate of change of temperature at base of lid.
 
             % determine the timestep - apply a courant type condition
             % to lid thickness change
@@ -318,8 +317,9 @@ for isetup = 5:5
                 dt = abs( (grid_r(2)-grid_r(1))/2/(dDdt) );
             end
             % apply a limiter based on mantle temperature change
-            if abs(dTmdt*dt) > 1.0
-                dt = abs(1.0/dTmdt);
+            max_dTm = 0.1;
+            if abs(dTmdt*dt) > max_dTm
+                dt = abs(max_dTm/dTmdt);
             end
             if dt < dtmin
                 dt = dtmin;
@@ -328,13 +328,15 @@ for isetup = 5:5
             if any(failure_mask)
                 dt = dtmin;
             end
+            % dTldt = (Tm-DTbl - T_last(1))/dt; %rate of change of temperature at base of lid.
 
             % update the mantle temperature
             delta_rb = dDdt*dt;
             z = z_last + delta_rb;
             % update the basal temperature
-            Tb = Tb + dTldt*dt;
             Tm = Tm + dTmdt*dt;
+            Tb = Tm - arh*dTnu(Tm);
+
 
             % compute the melting temperature for the new NH3 content at
             % the ocean-ice interface:

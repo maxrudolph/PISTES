@@ -31,7 +31,8 @@ nrs = [512]; % number of points used in the radial direction
 
 % Settings related to numerics
 label='Mars';
-seconds_in_year = 3.1558e7;
+seconds_in_year = 3.1556952e7;
+
 max_depth = 4e5; % maximum depth for saving solution values (m)
 relaxation_parameter = 1e-3;%1e-3; % used for fixed point iteration in pressure convergence loop.
 t_end = 4500e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
@@ -41,7 +42,7 @@ dtmin = 100*seconds_in_year;%*seconds_in_year;
 no_stress_time = parameters.no_stress_time*seconds_in_year;
 
 % Stuff related to the Mars thermal evolution model
-arh =2.0;   % constant from Michaut equation 12
+arh =2.54;   % constant from Michaut equation 12
 C   =0.5;   % Davaille and Jaupart 1993 constant for heat flux
 
 % Rheology
@@ -169,7 +170,8 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
     results.e_r = NaN*zeros(nsave_depths,nsave);
     results.Pex = zeros(nsave,1);
     results.Tm = zeros(nsave,1); results.Tm(1) = Tm0;
-    results.Pex_crit = zeros(nsave,1);
+    results.Tp = zeros(nsave,1);
+    results.z_lith = zeros(nsave,1); results.z_lith(1) = Ro-Ri;    results.Pex_crit = zeros(nsave,1);
     results.dTdr = zeros(nsave_depths,nsave);
     results.T = zeros(nsave_depths,nsave);
     results.Tb = zeros(nsave,1);
@@ -186,7 +188,8 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
     results.failure_erupted_volume_pressurechange = NaN*zeros(1,nsave);
     results.failure_erupted_volume_volumechange = NaN*zeros(1,nsave);
     results.stresss_crossover_depth = NaN*zeros(1,nsave);
-    results.maximum_differential_stress = NaN*zeros(1,nsave);
+    results.maximum_differential_stress = NaN*zeros(1,nsave);            results.minimum_differential_stress = NaN*zeros(1,nsave);
+
     results.maximum_stress_depth = NaN*zeros(1,nsave);
     results.maximum_stress_depth = NaN*zeros(1,nsave);
 
@@ -303,7 +306,7 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
         % qb_net = qb - total_heating; % first term is conducted heat. second term is heat supplied from below.
 
         % Implement the thermal evolution model...
-        D = Ro-Ri-z_last; % z is the amount by which the lid has thickened
+        D = Ro-(Ri-z_last); % z is the amount by which the lid has thickened
         mantle_volume = 4/3*pi*((Ro-D)^3-Rc^3);
         Cm = rho*Cp*mantle_volume; % mantle heat capacity
         Slid = 4*pi*(Ro-D)^2;
@@ -312,13 +315,13 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
         qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,0))^(1/3)*dTnu(Tm)^(4/3);
         % temperature difference across the boundary layer:
         DTbl = arh*dTnu(Tm);
+        delta_bl = k(Tm)*DTbl/qbl; % boundary layer thickness
         Tl = Tm-DTbl;% temp at base of conductive layer
         dH = rho*Cp*DTbl; % enthalpy change across the lid
         % rate of change of mantle temperature
-        dTmdt = 1/Cm * (-Slid*qlid + h_conv*mantle_volume); % Michaut et al. Equation 18
+        dTmdt = 1/Cm * (-Slid*qbl + h_conv*mantle_volume); % Michaut et al. Equation 18
         % rate of change of lid thickness.
         dDdt = 1/dH * (qlid-qbl);   % Michaut et al. Equation 19
-        dTldt = (Tm-DTbl - T_last(1))/dt; %rate of change of temperature at base of lid.
 
         % determine the timestep - apply a courant type condition
         % to lid thickness change
@@ -326,8 +329,9 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
             dt = abs( (grid_r(2)-grid_r(1))/2/(dDdt) );
         end
         % apply a limiter based on mantle temperature change
-        if abs(dTmdt*dt) > 1.0
-            dt = abs(1.0/dTmdt);
+        max_dTm = 0.1;
+        if abs(dTmdt*dt) > max_dTm
+            dt = abs(max_dTm/dTmdt);
         end
         if dt < dtmin
             dt = dtmin;
@@ -341,8 +345,10 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
         delta_rb = dDdt*dt;
         z = z_last + delta_rb;
         % update the basal temperature
-        Tb = Tb + dTldt*dt;
+
         Tm = Tm + dTmdt*dt;
+        Tb = Tm - arh*dTnu(Tm);
+
 
         % compute the melting temperature for the new NH3 content at
         % the ocean-ice interface:
@@ -401,6 +407,13 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
             % rhobar = 1/(ztmp(end)-ztmp(1))*rhobar(end);
 
             % Pex_crit = (rhobar-rho_lith)*(Ro-(Ri-z))*g;
+
+            % compute hydrostatic pressure (needed for rheology)
+            phydro = zeros(size(T));
+            phydro(end) = 0;
+            for i=(length(phydro)-1):-1:1
+                phydro(i) = phydro(i+1) + rho*g*(grid_r(i+1)-grid_r(i));
+            end
 
             % calculate viscosity at each node
             visc_converged = false;
@@ -651,7 +664,12 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
         Pex_last = Pex;
         Tb_last = Tb;
         Tm_last = Tm;
-
+        % compute the mantle potential temperature
+        z_lith = (Ro-Ri)+z + delta_bl;% lithosphere thickness = lid thickness + boundary layer thickness
+        Tp = Tm/exp(alpha_v*g*z_lith/Cp);
+        if time == 0
+            results.Tp(1) = Tp;
+        end
         time = time + dt;
 
         if (parameters.do_plots && (time >= plot_times(iplot) || time >= t_end ))
@@ -691,6 +709,8 @@ for inr=1:length(nrs) % loop over nr values for resolution tests
             results.z(isave) = z;
             results.Ri(isave) = Ri;
             results.Tm(isave) = Tm;
+            results.z_lith(isave)=z_lith;
+            results.Tp(isave) = Tp;
             % results.qb(isave) = total_heating;
             results.sigma_t(:,isave) = interp1(Ro-grid_r,sigma_t_last,save_depths);
             results.sigma_r(:,isave) = interp1(Ro-grid_r,sigma_r_last,save_depths);
