@@ -8,6 +8,7 @@ reference_no_stress_time = 0.5e9;
 % parameters.crust_heat_fraction=0.5;
 % parameters.viscosity = 3e20;
 parameters.do_plots = false;
+parameters.Tm0 = 1700;
 
 nvisc=20;
 visc = logspace(20,22,nvisc);
@@ -16,19 +17,23 @@ hf = linspace(0.3,0.7,nhf);
 nstress = 10;
 nst = linspace(0,3.5e9,nstress);
 
-allresults = cell(nvisc,nhf);
-for ivisc=1:nvisc
-    parfor ihf=1:nhf
-        p = parameters;
-        p.viscosity = visc(ivisc);
-        p.crust_heat_fraction = hf(ihf);
-        allresults{ivisc,ihf} = mars_thermal_evolution_and_stress(p);
-    end
-end
+nTm = 11;
+Tm = linspace(1600,1800,nTm);
 
-save(strcat('all_results_visc_crusthf', string(datetime), '.mat'),'-v7.3')
-
+% allresults = cell(nvisc,nhf);
+% for ivisc=1:nvisc
+%     parfor ihf=1:nhf
+%         p = parameters;
+%         p.viscosity = visc(ivisc);
+%         p.crust_heat_fraction = hf(ihf);
+%         allresults{ivisc,ihf} = mars_thermal_evolution_and_stress(p);
+%     end
+% end
+% 
+% save(strcat('all_results_visc_crusthf', string(datetime), '.mat'),'-v7.3')
+% 
 clear allresults;
+allresults = cell(nstress,nhf);
 
 for istress=1:nstress
     parfor ihf=1:nhf
@@ -40,7 +45,21 @@ for istress=1:nstress
     end
 end
 
+% save(strcat('all_results_stress_crusthf', string(datetime), '.mat'),'-v7.3')
+% % clear allresults;
+allresults = cell(nTm,nstress);
+
+for iTm=1:nTm
+    parfor istress=1:nstress
+        p = parameters;
+        p.no_stress_time = nst(istress);
+        p.Tm0 = Tm(iTm);
+        allresults{iTm,istress} = mars_thermal_evolution_and_stress(p);
+    end
+end
+
 save(strcat('all_results_stress_crusthf', string(datetime), '.mat'),'-v7.3')
+
 
 
 %% Make some plots to explore range from all models

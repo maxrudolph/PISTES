@@ -27,7 +27,7 @@ addpath ~/sw/matlab/crameri
 % for crust_heat_fraction = [0.3 0.5 0.7]
 
 
-nrs = [512]; % number of points used in the radial direction
+nrs = [256]; % number of points used in the radial direction
 
 for isetup = 5:5
     if isetup == 5 % Mars
@@ -46,7 +46,7 @@ for isetup = 5:5
         C   =0.5;   % Davaille and Jaupart 1993 constant for heat flux
 
         % Rheology
-        viscosity_model = 2;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
+        viscosity_model = 3;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
 
         Tref = 1600;            % Reference temperature, Kelvin.
         R=8.314e-3;             % in kJ/mol/K
@@ -102,7 +102,7 @@ for isetup = 5:5
         % rho = silicate_density; % uniform density approximation
         crust_mass = rhoc*4/3*pi*(Ro^3-(Ro-h_crust)^3);     % mass of the crust
         mantle_mass = silicate_mass - crust_mass; % mass of the mantle
-        mantle_density = mantle_mass/( 4/3*pi*((Ro-h_crust)^3-Rc^3));
+        mantle_density = mantle_mass/( 4/3*pi*((Ro-h_crust)^3-Rc^3) );
         rho=mantle_density;
         crust_mass_fraction = crust_mass/silicate_mass;
         % compute the heating per unit mass in the crust
@@ -777,7 +777,7 @@ for isetup = 5:5
         contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
         contour(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,[0 0],'k--'); %
-        plot(tga(mask1),results.maximum_stress_depth(mask1)/1e3,'r');
+        % plot(tga(mask1),results.maximum_stress_depth(mask1)/1e3,'r');
         % plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         %         set(gca,'YLim',[0 ceil(1+max(((Ro-results.Ri(mask))+results.z(mask))/1000))]);
         set(gca,'YDir','reverse');
@@ -895,8 +895,8 @@ for isetup = 5:5
         plot(tga(mask),results.z_lith(mask)/1000,'--','Color','k','LineWidth',1);
         hold on
         contour(tga(mask),save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
-        plot(0,450,'rs');
-        errorbar(0,450,-100,100);
+        % plot(0,450,'rs');
+        % errorbar(0,450,-100,100);
 
         set(gca,'YDir','reverse');
         hcb = colorbar();
@@ -985,8 +985,8 @@ for isetup = 5:5
         set(t.Children(axmask),'XDir','reverse')
 
         fig.Color = 'w';
-        filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
-        % exportgraphics(gcf,filename,'ContentType','vector');
+        filename = sprintf('mars-evolution-7panel-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+        exportgraphics(gcf,filename,'ContentType','vector');
         %% new multi-panel plot
         xscale = 'linear';
         ax=[];
@@ -1150,12 +1150,12 @@ for isetup = 5:5
         fig.Color = 'w';
         filename = sprintf('mars-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
         exportgraphics(gcf,filename,'ContentType','vector');
-    
+
         %% plot present-day stresses along with depth-distribution of marsquakes
-        
+
         figure();
         f=gcf();
-        f.Position(3:4) = [570 570];
+        f.Position(3:4) = [515 376];
         ind = find(mask,1,'last');
         tiledlayout(1,2);
         nexttile
@@ -1168,11 +1168,11 @@ for isetup = 5:5
         ylabel('Depth (km)','FontSize',12)
         xlabel('Stress (MPa)','FontSize',12)
         set(gca,'YLim',[0 250]);
-        set(gca,'XLim',[-125 250])
+        set(gca,'XLim',[-150 250])
         text(-0.2,0.98,'A','FontSize',16,'Units','normalized')
-        
+
         nexttile
-        rectangle('Position',[0,0,0.08,12],'FaceColor',0.75*[1 1 1],'EdgeColor','none'); 
+        rectangle('Position',[0,0,0.08,12],'FaceColor',0.75*[1 1 1],'EdgeColor','none');
         set(gca,'XLim',[0 0.08])
         text(0.02,6,'HF Event Depths')
         text(0.02,50,'LF Event Depths')
@@ -1182,14 +1182,15 @@ for isetup = 5:5
         hold on
         plot(Dprob,z,'LineWidth',1);
         plot(Tprob,z,'LineWidth',1);
-%Stahler    
+        %Stahler
         legend('Drilleau et al. (2022)','Durán et al. (2022)','Stähler et al. (2022)','Location','Southeast','FontSize',8)
         set(gca,'YDir','reverse')
         set(gca,'YLim',h.YLim);
         set(gca,'Box','on')
-                text(-0.2,0.98,'B','FontSize',16,'Units','normalized')
-
+        text(-0.2,0.98,'B','FontSize',16,'Units','normalized')
         xlabel('Marsquake prob. (-)','FontSize',12)
+        [a,i] = max(results.sigma_t(:,ind)/1e6);
+        sprintf('maximum sigma_t=%f, depth=%f',a,save_depths(i));
         filename = sprintf('mars-final-stress-with-marsquake-depths-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
         exportgraphics(gcf,filename,'ContentType','vector');
 
@@ -1197,7 +1198,7 @@ for isetup = 5:5
         dst_dt = (results.sigma_t(:,ind)-results.sigma_t(:,ind-1))/(results.time(ind)-results.time(ind-1));
         dsr_dt = (results.sigma_r(:,ind)-results.sigma_r(:,ind-1))/(results.time(ind)-results.time(ind-1));
         dsdt = abs(dst_dt-dsr_dt);% Pa/s
-        
+
         dr = diff(save_depths)';
         dA = (4*pi*(Ro-save_depths(1:end-1)'+dr/2).^2);
         moment = dr.*dA.*(0.5.*(dsdt(1:end-1)+dsdt(2:end)));% Pa*m^3/s (N-m/s)

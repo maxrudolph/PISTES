@@ -21,7 +21,7 @@ for isetup = 6:6
         label='Moon';
         seconds_in_year = 3.1556952e7;
         max_depth = 8e5; % maximum depth for saving solution values (m)
-        relaxation_parameter = 1e-4;%1e-3; % used for fixed point iteration in pressure convergence loop.
+        relaxation_parameter = 1e-3;%1e-3; % used for fixed point iteration in pressure convergence loop.
         t_end = 4500e6*seconds_in_year;%  3*perturbation_period; 5e8*seconds_in_year;
         dtmax = 5e6*seconds_in_year;
         dtmin = 100*seconds_in_year;%*seconds_in_year;
@@ -82,7 +82,7 @@ for isetup = 6:6
         Ri = Ro-thickness;  % initial inner radius of lithosphere
         Rc = 390*1000;       % core radius, m 
         h_crust = 40e3;     % crust thickness (assumed constant)
-        crust_heat_fraction = 0.8; % fraction of primitive mantle heat production concentrated within crust
+        crust_heat_fraction = 0.6; % fraction of primitive mantle heat production concentrated within crust
         moon_mass = 0.07346e24;
         silicate_mass = 0.98*moon_mass; % assuming core 2%
         silicate_density = silicate_mass / (4/3*pi*(Ro^3-Rc^3));% density of bulk silicate mars
@@ -979,7 +979,113 @@ for isetup = 6:6
         filename = sprintf('moon-thermal-evolution-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
         exportgraphics(gcf,filename,'ContentType','vector');
 
+        %%  %% plot present-day stresses along with depth-distribution of marsquakes
+        
+        figure();
+        f=gcf();
+        % f.Position(3:4) = [570 570];
+        f.Units = 'inches'
+        f.Position(3:4) = [11.135416666666666   3.833333333333333];
 
+        ind = find(mask,1,'last');
+        tiledlayout(1,4,'TileSpacing','compact');
+        tga = 4.5-results.time/seconds_in_year/1e9;
+        mask1 = mask & results.time>(no_stress_time+save_interval*10);
+        fs=12;
+
+        xscale = 'linear';
+        ax=[];
+        
+        % t=tiledlayout(5,1,'TileSpacing','compact','Padding','none');
+
+        nexttile([1,2])
+        contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
+        contourf(tga(mask),save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
+        hold on
+        plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
+        plot(tga(mask),results.z_lith(mask)/1000,'--','Color','k','LineWidth',1);
+        hold on
+        contour(tga(mask),save_depths/1000,results.T(:,mask),[1000 1000],'Color','k','LineStyle','-'); %
+        
+        set(gca,'YDir','reverse');
+        hcb = colorbar();
+        set(gca,'Colormap',crameri('-roma'))
+        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
+        caxis([-1 1]*stmax)
+        hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
+        % text(-0.16,0.95,char('A'+0),'FontSize',12,'Units','normalized');
+        
+        ylabel('Depth (km)','FontSize',fs);
+        % set(gca,'XScale',xscale);
+        hold on;
+        set(gca,'XDir','reverse');
+        xlabel('Time (Ga)','FontSize',fs)
+
+        set(gca,'YDir','reverse');
+        hcb = colorbar();
+        set(gca,'Colormap',crameri('-roma'))
+        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
+        caxis([-1 1]*stmax)
+        hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
+        hcb.Label.FontSize = fs;
+        text(-0.16,0.98,char('A'+0),'FontSize',fs+4,'Units','normalized');
+        
+        set(gca,'XScale',xscale);
+        hold on;
+        set(gca,'YLim',[0 600])
+        ax1=gca();
+        % 2nd panel - stress profile
+
+        nexttile
+        plot(results.sigma_t(:,ind)/1e6,save_depths/1e3,'LineWidth',1);
+        hold on
+        plot(results.sigma_r(:,ind)/1e6,save_depths/1e3,'LineWidth',1);
+        h=gca();
+        set(gca,'YDir','reverse');
+        legend('$\sigma_t$','$\sigma_r$','Interpreter','latex','FontSize',12,'location','SouthEast')
+        % ylabel('Depth (km)','FontSize',fs)
+        set(gca,'YTickLabels',[])
+        xlabel('Stress (MPa)','FontSize',fs)
+        % set(gca,'YLim',[0 250]);
+        set(gca,'YLim',ax1.YLim);
+        set(gca,'XLim',stmax*[-1 1])
+        text(-0.15,0.98,'B','FontSize',fs+4,'Units','normalized')
+        
+        addpath marsquakes
+        [z,khan,gillet] = ProbaQuakeDepth_Moon();
+
+        nexttile
+        % rectangle('Position',[0,0,0.08,12],'FaceColor',0.75*[1 1 1],'EdgeColor','none'); 
+        set(gca,'XLim',[0 0.08])
+        % text(0.02,6,'HF Event Depths')
+        % text(0.02,50,'LF Event Depths')
+        % hold on
+        % [z,Hprob,Dprob,Tprob]=ProbaQuakeDepth();
+        % plot(Hprob,z,'LineWidth',1);
+        % hold on
+        % plot(Dprob,z,'LineWidth',1);
+        % plot(Tprob,z,'LineWidth',1);
+%Stahler    
+
+        plot(khan,z,'LineWidth',1); hold on
+        plot(gillet,z,'LineWidth',1,'LineStyle','--');
+        legend('Khan et al., (2000)','Gillet et al. (2017)','Location','Southeast','FontSize',6)
+        set(gca,'YTickLabel',[])
+        set(gca,'YDir','reverse')
+        set(gca,'YLim',h.YLim);
+        set(gca,'Box','on')
+                text(-0.2,0.98,'C','FontSize',fs+4,'Units','normalized')
+
+        xlabel('Moonquake prob. (-)','FontSize',12)
+        [a,i] = max(results.sigma_t(:,ind)/1e6);
+        sprintf('maximum sigma_t=%f, depth=%f',a,save_depths(i))
+
+        results.stresss_crossover_depth(mask)
+        sprintf('zero stress depth = %f',results.stresss_crossover_depth(find(mask,1,'last')))
+
+
+        filename = sprintf('moon-stresses-and-moonquakes_zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
+        exportgraphics(gcf,filename,'ContentType','vector');
 
     end
 end

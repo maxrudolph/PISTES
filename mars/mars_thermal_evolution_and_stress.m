@@ -90,7 +90,7 @@ Ts = 250;               % Surface temperature, K.
 tstart = 0*seconds_in_year; % starting time of the model, used for radioactive heating.
 % note - initial temperature profile is steady state, calculated later
 % Initial basal temperature
-Tm0 = 1700;             % initial mantle temperature
+Tm0 = parameters.Tm0;             % initial mantle temperature
 DTbl = arh*dTnu(Tm0);
 Tb = Tm0-DTbl;          % Temperature at base of lid
 
