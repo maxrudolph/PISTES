@@ -6,7 +6,7 @@ seconds_in_year = 3.1558e7;
 parameters.no_stress_time = 0.5e9;
 reference_no_stress_time = 0.5e9;
 % parameters.crust_heat_fraction=0.5;
-% parameters.viscosity = 3e20;
+parameters.viscosity = 3e20;
 parameters.do_plots = false;
 parameters.Tm0 = 1700;
 
@@ -31,19 +31,19 @@ Tm = linspace(1600,1800,nTm);
 % end
 % 
 % save(strcat('all_results_visc_crusthf', string(datetime), '.mat'),'-v7.3')
+% % 
+% clear allresults;
+% allresults = cell(nstress,nhf);
 % 
-clear allresults;
-allresults = cell(nstress,nhf);
-
-for istress=1:nstress
-    parfor ihf=1:nhf
-        p = parameters;
-        p.viscosity = 3e20;
-        p.no_stress_time = nst(istress);
-        p.crust_heat_fraction = hf(ihf);
-        allresults{istress,ihf} = mars_thermal_evolution_and_stress(p);
-    end
-end
+% for istress=1:nstress
+%     parfor ihf=1:nhf
+%         p = parameters;
+%         p.viscosity = 3e20;
+%         p.no_stress_time = nst(istress);
+%         p.crust_heat_fraction = hf(ihf);
+%         allresults{istress,ihf} = mars_thermal_evolution_and_stress(p);
+%     end
+% end
 
 % save(strcat('all_results_stress_crusthf', string(datetime), '.mat'),'-v7.3')
 % % clear allresults;

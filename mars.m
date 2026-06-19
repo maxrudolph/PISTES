@@ -46,7 +46,7 @@ for isetup = 5:5
         C   =0.5;   % Davaille and Jaupart 1993 constant for heat flux
 
         % Rheology
-        viscosity_model = 3;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
+        viscosity_model = 2;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
 
         Tref = 1600;            % Reference temperature, Kelvin.
         R=8.314e-3;             % in kJ/mol/K
@@ -1203,6 +1203,15 @@ for isetup = 5:5
         dA = (4*pi*(Ro-save_depths(1:end-1)'+dr/2).^2);
         moment = dr.*dA.*(0.5.*(dsdt(1:end-1)+dsdt(2:end)));% Pa*m^3/s (N-m/s)
         total_moment = sum(moment(~isnan(moment)))*3.15e7; %N-m/year
+%% useful numbers
 
+        [a,i] = max(results.sigma_t(:,ind)/1e6);
+        disp(sprintf('maximum sigma_t=%f, depth=%f',a,save_depths(i)))
+
+        [a,i] = max( (results.sigma_t(:,ind)/1e6-results.sigma_r(:,ind)/1e6) );
+        disp(sprintf('maximum sigma_t-sigma_r=%f, depth=%f',a,save_depths(i)))
+
+        results.stresss_crossover_depth(mask)
+        sprintf('zero stress depth = %f',results.stresss_crossover_depth(find(mask,1,'last')))
     end
 end
