@@ -5,7 +5,7 @@ close all;
 seconds_in_year = 3.1558e7;
 parameters.no_stress_time = 0.5e9;
 reference_no_stress_time = 0.5e9;
-% parameters.crust_heat_fraction=0.5;
+parameters.crust_heat_fraction=0.6;
 parameters.viscosity = 3e20;
 parameters.do_plots = false;
 parameters.Tm0 = 1700;
