@@ -1,16 +1,16 @@
-function [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho_i,Cp,H,dt,delta_rb)
+function [T,dTdotdr] = solve_temperature_shell(grid_r,T_last,Tb,Ts,k,rho,Cp,H,dt,delta_rb)
 % Solve the energy equation in spherical coordinates
 % VECTOR inputs
 % grid_r - node locations
 % T_last - last timestep solution
 % H - vector of heating values (volumetric)
+% k - thermal conductivity
+% rho - density
+% cp - heat capacity
 %
 % SCALAR inputs
 % Tb - basal temperature
 % Ts - surface temperature
-% k - thermal conductivity
-% rho - density
-% Cp - heat capacity
 % dt - timestep
 
 % the equations are discretized as rho*Cp/dt*dTnew - div(k*grad(Tnew)) = rho*Cp/dt*Tlast + H 
@@ -30,31 +30,31 @@ for i=1:nr
     %   |     o    |    o     |
     % (i-1)   B   (i)   A   (i+1)
     if i==1
-        drm = grid_r(i+1)-grid_r(i);
-        kB = k( Tb - (T_last(i+1)-T_last(i))/2 );
+        drm = grid_r(i+1)-grid_r(i);        
+        kB = k(i);
     else
         drm = grid_r(i)-grid_r(i-1);
-        kB = k( (T_last(i)+T_last(i-1))/2 );
+        kB = (k(i-1)+k(i))/2;
     end
     if i==nr
         drp = drm;
-        kA = k( Ts + (T_last(i)-T_last(i-1))/2 );
+        kA = k(nr);
     else
         drp = grid_r(i+1)-grid_r(i);
-        kA = k( (T_last(i)+T_last(i+1))/2 );
+        kA = (k(i+1)+k(i))/2;
     end
     rA = r + drp/2;
     rB = r - drm/2;
         
     dr = rA-rB;
     coef_plus   = -kA*rA^2/r^2/drp/dr;
-    coef_center =  rho_i*Cp/dt + kA*rA^2/r^2/drp/dr + kB*rB^2/r^2/drm/dr;
+    coef_center =  rho(i)*Cp(i)/dt + kA*rA^2/r^2/drp/dr + kB*rB^2/r^2/drm/dr;
     coef_minus  = -kB*rB^2/r^2/drm/dr;
     
     if( i==1 )
         row(ind) = i; col(ind) = i; val(ind) =  coef_center; ind = ind + 1;
         row(ind) = i; col(ind) = i+1; val(ind) =  coef_plus-coef_minus; ind = ind + 1;
-        R(i) = rho_i*Cp/dt*T_last(i) + H(i) - 2*Tb*coef_minus;
+        R(i) = rho(i)*Cp(i)/dt*T_last(i) + H(i) - 2*Tb*coef_minus;
         %             L(i,i+1) = coef_plus-coef_minus;
         %             R(i) = R(i) - 2*Tb*coef_minus;
         %         R(i) = coef_center*Tb;
@@ -62,14 +62,14 @@ for i=1:nr
         row(ind) = i; col(ind) = i;   val(ind) = coef_center; ind = ind+1;
         row(ind) = i; col(ind) = i-1; val(ind) = coef_minus-coef_plus; ind = ind+1;
         %             L(i,i-1) = coef_minus-coef_plus;
-        R(i) = rho_i*Cp/dt*T_last(i) + H(i) - 2*Ts*coef_plus;
+        R(i) = rho(i)*Cp(i)/dt*T_last(i) + H(i) - 2*Ts*coef_plus;
         %         R(i) = coef_center*Ts;
     else
         row(ind) = i; col(ind) = i-1; val(ind) = coef_minus;  ind = ind + 1;
         row(ind) = i; col(ind) = i;   val(ind) = coef_center; ind = ind + 1;
         row(ind) = i; col(ind) = i+1; val(ind) = coef_plus;   ind = ind + 1;
         
-        R(i) = rho_i*Cp/dt*T_last(i) + H(i);
+        R(i) = rho(i)*Cp(i)/dt*T_last(i) + H(i);
     end
 end
 row = row(1:ind-1);
@@ -78,10 +78,7 @@ val = val(1:ind-1);
 L = sparse(row,col,val,nr,nr);
 T = L\R;
 
-% dTdr_b = (T(2)-Tb)/(grid_r(2)-grid_r(1));
-dr1 = grid_r(2)-grid_r(1);
-
-dTdr_b = 1/dr1*(2*(T(2)-T(1)) - (T(3)-T(1))/2);
+dTdr_b = (T(2)-Tb)/(grid_r(2)-grid_r(1));
 Tdot = (T-T_last)/dt;
 Tdot(1) = dTdr_b*delta_rb/dt;
 dTdotdr = zeros(nr,1);
