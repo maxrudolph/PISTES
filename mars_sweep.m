@@ -58,7 +58,7 @@ for iTm=1:nTm
     end
 end
 
-save(strcat('all_results_stress_crusthf', string(datetime), '.mat'),'-v7.3')
+save(strcat('all_results_Tm_stress', string(datetime), '.mat'),'-v7.3')
 
 
 
@@ -257,6 +257,105 @@ set(gca,'PlotBoxAspectRatio',[1 1 1])
 text(0.05,0.9,'F','Units','normalized','FontSize',16)
 
 exportgraphics(gcf,'tradeoff-stressfreetime-heating.pdf',"ContentType",'vector');
+
+%% Plot Tm vs no stress time
+%% Make some plots to explore range from all models
+% plot the crossover depth at the end of the calculation
+max_stress_depth = cellfun( @(x) x.maximum_stress_depth(x.last_isave-1),allresults);
+max_differential_stress = cellfun( @(x) x.maximum_differential_stress(x.last_isave-1),allresults);
+min_differential_stress = cellfun( @(x) x.minimum_differential_stress(x.last_isave-1),allresults);
+stress_crossover_depth = cellfun( @(x) x.stresss_crossover_depth(x.last_isave-1),allresults);
+mantle_temperature=cellfun( @(x) x.Tm(x.last_isave-1),allresults);
+final_lid_thickness=cellfun( @(x) x.state.Ro-x.state.Ri + x.z(x.last_isave-1),allresults);
+
+reference_mantle_temperature = parameters.Tm0;
+
+f=figure()
+f.Position(3:4) = [530   602];
+t=tiledlayout(3,2,"TileSpacing","compact","Padding","none","TileIndexing","rowmajor");
+nexttile
+contourf(nst/1e9,Tm,mantle_temperature);
+hold on;
+plot(reference_no_stress_time/1e9,reference_mantle_temperature,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
+% set(gca,'YScale','log')
+hcb=colorbar()
+hcb.Label.String = 'T_m (K)';
+ylabel('Tm_0 (K)')
+xlabel('Stress-free time (Gyr)')
+title("Mantle temperature")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+text(0.05,0.9,'A','Units','normalized','FontSize',16)
+
+nexttile
+contourf(nst/1e9,Tm,final_lid_thickness/1e3);
+hold on;
+plot(reference_no_stress_time/1e9,reference_mantle_temperature,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
+% set(gca,'YScale','log')
+hcb = colorbar();
+hcb.Label.String = 'Thickness (km)';
+ylabel('Tm_0 (K)')
+xlabel('Stress-free time (Gyr)')
+title("Lid thickness")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+text(0.05,0.9,'B','Units','normalized','FontSize',16)
+
+
+nexttile;
+contourf(nst/1e9,Tm,max_stress_depth/1e3);
+hold on;
+plot(reference_no_stress_time/1e9,reference_mantle_temperature,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
+% set(gca,'YScale','log')
+hcb = colorbar();
+hcb.Label.String = 'Depth (km)';
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+ylabel('Tm_0 (K)')
+xlabel('Stress-free time (Gyr)')
+title("Depth of max. \sigma_t-\sigma_r")
+text(0.05,0.9,'C','Units','normalized','FontSize',16)
+
+
+nexttile
+contourf(nst/1e9,Tm,stress_crossover_depth/1e3);
+hold on;
+plot(reference_no_stress_time/1e9,reference_mantle_temperature,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
+% set(gca,'YScale','log')
+hcb=colorbar()
+hcb.Label.String = 'Depth (km)';
+ylabel('Tm_0 (K)')
+xlabel('Stress-free time (Gyr)')
+title("Depth of \sigma_t-\sigma_r=0")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+text(0.05,0.9,'D','Units','normalized','FontSize',16)
+
+
+nexttile
+contourf(nst/1e9,Tm,max_differential_stress/1e6);
+hold on;
+plot(reference_no_stress_time/1e9,reference_mantle_temperature,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
+% set(gca,'YScale','log')
+hcb=colorbar();
+hcb.Label.String = 'Stress (MPa)';
+ylabel('Tm_0 (K)')
+xlabel('Stress-free time (Gyr)')
+title("Max. \sigma_t-\sigma_r (tension)")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+text(0.05,0.9,'E','Units','normalized','FontSize',16)
+
+nexttile
+contourf(nst/1e9,Tm,min_differential_stress/1e6);
+hold on;
+plot(reference_no_stress_time/1e9,reference_mantle_temperature,'Marker','pentagram','MarkerSize',12,'MarkerFaceColor','red')
+% set(gca,'YScale','log')
+hcb=colorbar();
+hcb.Label.String = 'Stress (MPa)';
+ylabel('Tm_0 (K)')
+xlabel('Stress-free time (Gyr)')
+title("Min. \sigma_t-\sigma_r (compression)")
+set(gca,'PlotBoxAspectRatio',[1 1 1])
+text(0.05,0.9,'F','Units','normalized','FontSize',16)
+
+exportgraphics(gcf,'tradeoff-Tm-stressfreetime.pdf',"ContentType",'vector');
+
 
 %% Plot the edge cases
 for ivisc=[1 nvisc]
