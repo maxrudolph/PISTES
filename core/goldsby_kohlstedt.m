@@ -1,4 +1,4 @@
-function [etaeff] = goldsby_kholstedt(s,T,d,P)
+function [etaeff] = goldsby_kohlstedt(s,T,d,P)
 % s is stress in Pascal
 % T is temperature in K
 % d is grain size in m
@@ -12,9 +12,7 @@ assert(all(size(s) == size(T))); % ensure that sizes of s and T are compatible.
 R = 8.3144621; % ideal gas constant, J/mol/K */
 %   /* diffusion creep */
 
-if( P < 1.0 )
-    P = 1.0; %/* prevent spurious pressures from affecting viscosity */
-end
+P = max(P,1.0); %/* prevent spurious pressures from affecting viscosity (element-wise if P is an array) */
 %   {
 %     /* quantities from table 6: Diffusion Creep Parameters */
 b = 4.52e-10; %/* burgers vector */
@@ -51,17 +49,16 @@ egbs(~mask) = A*(s(~mask)/1e6).^n/d^p.*exp( (-Q + P*V)./(R*T(~mask)) );
 %   PetscScalar edisl;
 %   {
 %     PetscScalar A,n,Q;
-if( T < 258 )
-    A=4.0e5;% /* MPa^-4.0 s^-1 */
-    n=4.0;
-    Q=60*1000.0; %/* J/mol */
-else
-    A = 6.0e28; %/* MPa^-4.0 S^-1 */
-    n = 4.0;
-    Q = 180*1000.0; %/* Note that there is a mistake in G&K table 5. Should be 180 kJ/mol per text */
-end
+% T is a vector, so choose parameters node by node (an 'if' on an array is
+% true only if every element is true).
+warm = T >= 258;
+A = 4.0e5*ones(size(T));% /* MPa^-4.0 s^-1, T < 258 K */
+Q = 60*1000.0*ones(size(T)); %/* J/mol, T < 258 K */
+A(warm) = 6.0e28; %/* MPa^-4.0 S^-1 */
+Q(warm) = 180*1000.0; %/* Note that there is a mistake in G&K table 5. Should be 180 kJ/mol per text */
+n = 4.0;
 V = -13e-6; %/* m^3/mol, activation volume from text */
-edisl = A*(s/1e6).^n.*exp( (-Q + P*V)./(R*T) );
+edisl = A.*(s/1e6).^n.*exp( (-Q + P*V)./(R*T) );
 %   }
 %   PetscScalar ebs;
 %   {
