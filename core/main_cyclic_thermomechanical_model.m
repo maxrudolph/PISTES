@@ -49,7 +49,7 @@ Qtot = @(time) Q0*(1+deltaQonQ*sin(-2*pi*time/perturbation_period));
 % Physical constants
 seconds_in_year = 3.1558e7;
 % Boundary conditions and internal heating
-H=0; % internal heating rate.
+H=zeros(nr,1); % internal heating rate (W/m^3) at each node; solve_temperature_shell expects a vector
 
 % Elastic and Viscous properties
 E = 5e9;        % shear modulus of ice (Pa)
@@ -183,7 +183,7 @@ while time < t_end && ~terminate
     end
     if any(failure_mask)
         if Pex < 0
-            dt =dtmax/10;
+            dt = min(dt,dtmax/10); % don't exceed the freezing-front and growth limits above
         else
         dt = dtmin;
         end
@@ -241,6 +241,7 @@ while time < t_end && ~terminate
         
         % calculate viscosity at each node
         for ivisc=1:10
+            yielding = false(nr,1); % only set in the no-failure branch below; reset so the failure branches make a single pass
             mu_node = zeros(nr,1);
             mu_node(:) = mu(T,siiD_last);
             % reduce Maxwell time in cracked region
