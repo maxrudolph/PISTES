@@ -298,7 +298,7 @@ for isetup = 5:5
             mantle_volume = 4/3*pi*((Ro-D)^3-Rc^3);
             Cm = rho*Cp*mantle_volume; % mantle heat capacity
             Slid = 4*pi*(Ro-D)^2;
-            h_conv = mantle_heating_factor*rho*mars_heating(time/seconds_in_year); % mantle volumetric heat production
+            h_conv = mantle_heating_factor*rho*mars_heating((time+tstart)/seconds_in_year); % mantle volumetric heat production
             % boundary layer heat transport into the lid:
             qbl = C*k(Tm)*(alpha_v_bl*rho*g/kappa/mu(Tm,1e9,0))^(1/3)*dTnu(Tm)^(4/3);% note assumes 1 GPa-pressure creep viscosity
             % temperature difference across the boundary layer:
@@ -889,7 +889,6 @@ for isetup = 5:5
 
         nexttile
         contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
-        contourf(tga(mask),save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
         plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         plot(tga(mask),results.z_lith(mask)/1000,'--','Color','k','LineWidth',1);
@@ -901,7 +900,7 @@ for isetup = 5:5
         set(gca,'YDir','reverse');
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
-        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
+        stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
         caxis([-1 1]*stmax)
         hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
         text(0.025,0.85,char('A'+0),'FontSize',12,'Units','normalized');
@@ -1019,7 +1018,6 @@ for isetup = 5:5
 
         nexttile([2,1])
         contourf(tga(mask),save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
-        contourf(tga(mask),save_depths/1000,results.sigma_t(:,mask)/1e6,64,'Color','none'); %shading flat;
         hold on
         plot(tga(mask),((Ro-results.Ri(mask))+results.z(mask))/1000,'Color','k','LineWidth',1);
         plot(tga(mask),results.z_lith(mask)/1000,'--','Color','k','LineWidth',1);
@@ -1031,7 +1029,7 @@ for isetup = 5:5
         set(gca,'YDir','reverse');
         hcb = colorbar();
         set(gca,'Colormap',crameri('-roma'))
-        stmax = max(max(abs(results.sigma_t(:,mask)/1e6)));
+        stmax = max(max(abs(results.differential_stress(:,mask)/1e6)));
         caxis([-1 1]*stmax)
         hcb.Label.String = '\sigma_t-\sigma_r (MPa)';
         text(-0.16,0.95,char('A'+0),'FontSize',12,'Units','normalized');
