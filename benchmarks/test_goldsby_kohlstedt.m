@@ -11,10 +11,13 @@ T = 258* ones(size(sigma));
 d=1e-3;
 P=1.3*1000*1e4;
 
-eta = goldsby_kohlstedt(sigma,T,d,P);
+% sigma is the differential stress of a uniaxial experiment. goldsby_kohlstedt
+% takes the deviatoric stress invariant, sigma/sqrt(3), and the axial strain
+% rate is then (2/3*sigma)/(2*eta) = sigma/(3*eta).
+eta = goldsby_kohlstedt(sigma/sqrt(3),T,d,P);
 
 figure()
-plot(sigma/1e6,sigma./(2*eta));
+plot(sigma/1e6,sigma./(3*eta));
 xlabel('stress (MPa)');
 ylabel('strain rate (1/s)');
 set(gca,'YLim',[1e-12 1e0]);
