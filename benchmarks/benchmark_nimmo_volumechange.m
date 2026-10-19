@@ -20,7 +20,7 @@ maxiter=300;
 seconds_in_year = 3.1558e7;
 R=8.314e-3;     % in kJ/mol/K
 % Boundary conditions and internal heating
-H=0; % internal heating rate.
+H=zeros(nr,1); % internal heating rate (W/m^3) at each node; solve_temperature_shell expects a vector
 Tb=270;
 Ts=100;
 Ro = 1500*1000;             % outer radius of ice shell (m)
