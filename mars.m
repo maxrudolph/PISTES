@@ -56,7 +56,7 @@ for isetup = 5:5
             mu = @(T,P,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
             dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
         elseif viscosity_model==3
-            viscosity.d = 7.08e-3;  %grain size in m. 7.08e-3 gives 3e20 Pa-s at 1 GPa pressure and 0 stress
+            viscosity.d = 8.105e-3; %grain size in m. 8.105e-3 gives 3e20 Pa-s at 1600 K, 1 GPa pressure and 0 stress (hirth_kohlstedt with tensor-invariant conversion)
             % viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
             Q=375; % Q used in hirth and kohlstedt model - use it for the mantle too?
             mu = @(T,P,stress) hirth_kohlstedt(stress,T,viscosity.d,P);
