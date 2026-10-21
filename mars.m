@@ -56,7 +56,7 @@ for isetup = 5:5
             mu = @(T,P,stress) mub*exp(Q/R*(1./T - 1./Tref)); % Michaut et al. 2025 - Arrhenius form
             dTnu = @(T) R/Q*T^2; % rheological temperature scale (positive sign??)
         elseif viscosity_model==3
-            viscosity.d = 7.08e-3;  %grain size in m. 7.08e-3 gives 3e20 Pa-s at 1 GPa pressure and 0 stress
+            viscosity.d = 8.105e-3; %grain size in m. 8.105e-3 gives 3e20 Pa-s at 1600 K, 1 GPa pressure and 0 stress (hirth_kohlstedt with tensor-invariant conversion)
             % viscosity.P = NaN;      %1e5; % Pressure in MPa used to calculate the viscosity (for G-K)
             Q=375; % Q used in hirth and kohlstedt model - use it for the mantle too?
             mu = @(T,P,stress) hirth_kohlstedt(stress,T,viscosity.d,P);
@@ -861,7 +861,7 @@ for isetup = 5:5
         xscale = 'linear';
         ax=[];
         figure();
-        t=tiledlayout(7,1,'TileSpacing','compact','Padding','none');
+        t=tiledlayout(7,1,'TileSpacing','none','Padding','none'); % gaps are added below (panel_gap)
 
         % nexttile
         % contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
@@ -982,6 +982,25 @@ for isetup = 5:5
         set(t.Children(axmask),'XTickLabel',[])
         set(gca,'XTickLabel',get(gca,'XTick'))
         set(t.Children(axmask),'XDir','reverse')
+        % tiledlayout only offers fixed tile spacings, so lay the tiles out with
+        % no spacing and then move each panel (and its colorbar) onto the figure
+        % with an explicit gap. panel_gap is a fraction of the figure height.
+        panel_gap = 0.018;
+        drawnow;
+        panel_axes = findobj(t.Children,'flat','Type','axes');
+        panel_cbs  = findobj(t.Children,'flat','Type','colorbar');
+        npanel = numel(panel_axes);
+        h_all = [panel_axes; panel_cbs];
+        tiles = arrayfun(@(h) h.Layout.Tile, h_all);
+        pos = cell(size(h_all));
+        for i = 1:numel(h_all), pos{i} = h_all(i).Position; end
+        for i = 1:numel(h_all)
+            shrink_top = (tiles(i) > 1)*panel_gap/2;      % keep the outer edges of
+            shrink_bot = (tiles(i) < npanel)*panel_gap/2; % the top and bottom panels
+            h_all(i).Parent = fig;
+            h_all(i).Units = 'normalized';
+            h_all(i).Position = pos{i} + [0 shrink_bot 0 -(shrink_top+shrink_bot)];
+        end
 
         fig.Color = 'w';
         filename = sprintf('mars-evolution-7panel-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
