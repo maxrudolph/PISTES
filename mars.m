@@ -861,7 +861,7 @@ for isetup = 5:5
         xscale = 'linear';
         ax=[];
         figure();
-        t=tiledlayout(7,1,'TileSpacing','compact','Padding','none');
+        t=tiledlayout(7,1,'TileSpacing','none','Padding','none'); % gaps are added below (panel_gap)
 
         % nexttile
         % contourf(results.time(mask)/seconds_in_year/1e6,save_depths/1000,results.differential_stress(:,mask)/1e6,64,'Color','none'); %shading flat;
@@ -982,6 +982,25 @@ for isetup = 5:5
         set(t.Children(axmask),'XTickLabel',[])
         set(gca,'XTickLabel',get(gca,'XTick'))
         set(t.Children(axmask),'XDir','reverse')
+        % tiledlayout only offers fixed tile spacings, so lay the tiles out with
+        % no spacing and then move each panel (and its colorbar) onto the figure
+        % with an explicit gap. panel_gap is a fraction of the figure height.
+        panel_gap = 0.018;
+        drawnow;
+        panel_axes = findobj(t.Children,'flat','Type','axes');
+        panel_cbs  = findobj(t.Children,'flat','Type','colorbar');
+        npanel = numel(panel_axes);
+        h_all = [panel_axes; panel_cbs];
+        tiles = arrayfun(@(h) h.Layout.Tile, h_all);
+        pos = cell(size(h_all));
+        for i = 1:numel(h_all), pos{i} = h_all(i).Position; end
+        for i = 1:numel(h_all)
+            shrink_top = (tiles(i) > 1)*panel_gap/2;      % keep the outer edges of
+            shrink_bot = (tiles(i) < npanel)*panel_gap/2; % the top and bottom panels
+            h_all(i).Parent = fig;
+            h_all(i).Units = 'normalized';
+            h_all(i).Position = pos{i} + [0 shrink_bot 0 -(shrink_top+shrink_bot)];
+        end
 
         fig.Color = 'w';
         filename = sprintf('mars-evolution-7panel-zerotime-%f.pdf',no_stress_time/seconds_in_year/1e9);
