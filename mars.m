@@ -46,7 +46,7 @@ for isetup = 5:5
         C   =0.5;   % Davaille and Jaupart 1993 constant for heat flux
 
         % Rheology
-        viscosity_model = 2;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
+        viscosity_model = 3;    % 0 = Nimmo (2004), 1 = Goldsby and Kohlstedt (2001), 2=Arrhenius
 
         Tref = 1600;            % Reference temperature, Kelvin.
         R=8.314e-3;             % in kJ/mol/K
